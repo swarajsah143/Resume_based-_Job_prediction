@@ -1,6 +1,7 @@
 flask
-flask-sqlalchemy
+mongoengine
 flask-cors
+flask-mail
 authlib
 requests
 python-dotenv

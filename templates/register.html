@@ -239,8 +239,10 @@
                 btn.classList.remove('loading');
 
                 if (res.ok) {
-                    showAlert('Account created successfully! Redirecting to login...', 'success');
-                    setTimeout(() => { window.location.href = '/login'; }, 1200);
+                    showAlert(data.message || 'OTP sent! Redirecting...', 'success');
+                    setTimeout(() => {
+                        window.location.href = (data.redirect || '/verify-otp') + '?email=' + encodeURIComponent(email.value);
+                    }, 1000);
                 } else {
                     showAlert(data.error || 'Registration failed', 'error');
                 }

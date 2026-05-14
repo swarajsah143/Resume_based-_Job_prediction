@@ -119,10 +119,12 @@
             return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
         }
 
-        // Show OAuth error if redirected back with ?error=oauth_failed
+        // Show OAuth errors if redirected back with ?error=...
         const params = new URLSearchParams(window.location.search);
         if (params.get('error') === 'oauth_failed') {
             showAlert('Social login failed. Please try again or use email/password.', 'error');
+        } else if (params.get('error') === 'oauth_not_configured') {
+            showAlert('OAuth is not configured yet. Add your Client ID and Secret to the .env file. Visit /auth/check for details.', 'error');
         }
 
         document.getElementById('loginForm').addEventListener('submit', async function(e) {

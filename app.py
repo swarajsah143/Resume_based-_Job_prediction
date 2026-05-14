@@ -4,7 +4,9 @@ Resume-Based Job Suggestion System — Flask Backend
 from __future__ import annotations
 
 import os
-from datetime import datetime, timezone
+import random
+import string
+from datetime import datetime, timezone, timedelta
 from typing import Any, TypeVar
 
 from dotenv import load_dotenv
@@ -24,7 +26,8 @@ def _take(items: list[_T], n: int) -> list[_T]:
 
 from flask import Flask, request, jsonify, render_template, redirect, url_for, session
 from flask_cors import CORS
-from flask_sqlalchemy import SQLAlchemy
+import mongoengine
+from flask_mail import Mail, Message
 from werkzeug.security import generate_password_hash, check_password_hash
 from authlib.integrations.flask_client import OAuth
 
@@ -32,35 +35,58 @@ app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'resumeai-dev-secret-key-change-in-production')
 CORS(app)
 
+# ─── Email Configuration ─────────────────────────────────────────────────────
+
+app.config['MAIL_SERVER'] = os.environ.get('MAIL_SERVER', 'smtp.gmail.com')
+app.config['MAIL_PORT'] = int(os.environ.get('MAIL_PORT', 587))
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME', '')
+app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD', '')
+app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_USERNAME', '')
+
+mail = Mail(app)
+
+OTP_EXPIRY_MINUTES = 5
+OTP_COOLDOWN_SECONDS = 60
+
 # ─── Database Configuration ──────────────────────────────────────────────────
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{os.path.join(BASE_DIR, 'resumeai.db')}"
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+mongoengine.connect(host=os.environ.get('MONGODB_URI', 'mongodb://localhost:27017/resumeai'))
 
 UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB
 
-db = SQLAlchemy(app)
-
 # ─── OAuth Configuration ─────────────────────────────────────────────────────
+
+GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID', '')
+GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET', '')
+GITHUB_CLIENT_ID = os.environ.get('GITHUB_CLIENT_ID', '')
+GITHUB_CLIENT_SECRET = os.environ.get('GITHUB_CLIENT_SECRET', '')
+
+def _oauth_configured(provider: str) -> bool:
+    if provider == 'google':
+        return bool(GOOGLE_CLIENT_ID and 'your-' not in GOOGLE_CLIENT_ID)
+    if provider == 'github':
+        return bool(GITHUB_CLIENT_ID and 'your-' not in GITHUB_CLIENT_ID)
+    return False
 
 oauth = OAuth(app)
 
 oauth.register(
     name='google',
-    client_id=os.environ.get('GOOGLE_CLIENT_ID'),
-    client_secret=os.environ.get('GOOGLE_CLIENT_SECRET'),
+    client_id=GOOGLE_CLIENT_ID,
+    client_secret=GOOGLE_CLIENT_SECRET,
     server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
     client_kwargs={'scope': 'openid email profile'},
 )
 
 oauth.register(
     name='github',
-    client_id=os.environ.get('GITHUB_CLIENT_ID'),
-    client_secret=os.environ.get('GITHUB_CLIENT_SECRET'),
+    client_id=GITHUB_CLIENT_ID,
+    client_secret=GITHUB_CLIENT_SECRET,
     authorize_url='https://github.com/login/oauth/authorize',
     access_token_url='https://github.com/login/oauth/access_token',
     api_base_url='https://api.github.com/',
@@ -70,34 +96,68 @@ oauth.register(
 
 # ─── User Model ──────────────────────────────────────────────────────────────
 
-class User(db.Model):
-    __tablename__ = 'users'
-
-    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    fullname = db.Column(db.String(150), nullable=False)
-    email = db.Column(db.String(150), unique=True, nullable=False, index=True)
-    password_hash = db.Column(db.String(256), nullable=True)
-    auth_provider = db.Column(db.String(20), default='local')
-    profile_picture = db.Column(db.String(512), nullable=True)
-    last_login = db.Column(db.DateTime, nullable=True)
-    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
-    analyses = db.relationship('AnalysisHistory', backref='user', lazy=True, order_by='AnalysisHistory.created_at.desc()')
+class User(mongoengine.Document):
+    meta = {'collection': 'users'}
+    fullname = mongoengine.StringField(required=True, max_length=150)
+    email = mongoengine.StringField(required=True, unique=True, max_length=150)
+    password_hash = mongoengine.StringField(max_length=256)
+    auth_provider = mongoengine.StringField(default='local', max_length=20)
+    profile_picture = mongoengine.StringField(max_length=512)
+    last_login = mongoengine.DateTimeField()
+    created_at = mongoengine.DateTimeField(default=lambda: datetime.now(timezone.utc))
 
 
-class AnalysisHistory(db.Model):
-    __tablename__ = 'analysis_history'
-
-    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
-    filename = db.Column(db.String(255), nullable=False)
-    predicted_role = db.Column(db.String(150), nullable=False)
-    confidence = db.Column(db.Float, nullable=False)
-    resume_score = db.Column(db.Integer, nullable=False)
-    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+class AnalysisHistory(mongoengine.Document):
+    meta = {'collection': 'analysis_history', 'indexes': ['user_id', '-created_at']}
+    user_id = mongoengine.StringField(required=True)
+    filename = mongoengine.StringField(required=True, max_length=255)
+    predicted_role = mongoengine.StringField(required=True, max_length=150)
+    confidence = mongoengine.FloatField(required=True)
+    resume_score = mongoengine.IntField(required=True)
+    created_at = mongoengine.DateTimeField(default=lambda: datetime.now(timezone.utc))
 
 
-with app.app_context():
-    db.create_all()
+class OtpVerification(mongoengine.Document):
+    meta = {'collection': 'otp_verifications', 'indexes': ['email', '-created_at']}
+    email = mongoengine.StringField(required=True, max_length=150)
+    otp = mongoengine.StringField(required=True, max_length=6)
+    fullname = mongoengine.StringField(required=True, max_length=150)
+    password_hash = mongoengine.StringField(required=True, max_length=256)
+    expires_at = mongoengine.DateTimeField(required=True)
+    is_verified = mongoengine.BooleanField(default=False)
+    created_at = mongoengine.DateTimeField(default=lambda: datetime.now(timezone.utc))
+
+
+# ─── OTP Helpers ─────────────────────────────────────────────────────────────
+
+def _generate_otp() -> str:
+    return ''.join(random.choices(string.digits, k=6))
+
+
+def _send_otp_email(email: str, otp: str) -> bool:
+    try:
+        msg = Message(
+            subject=f'ResumeAI — Your verification code is {otp}',
+            recipients=[email],
+            html=f'''
+            <div style="font-family:'Segoe UI',Arial,sans-serif;max-width:480px;margin:0 auto;padding:40px 24px;background:#0a0a12;color:#f0f0f5;border-radius:16px;">
+                <div style="text-align:center;margin-bottom:32px;">
+                    <span style="font-size:28px;font-weight:700;background:linear-gradient(135deg,#6366f1,#a855f7,#ec4899);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">&#9670; ResumeAI</span>
+                </div>
+                <h2 style="text-align:center;color:#f0f0f5;margin:0 0 8px;font-size:22px;">Verify your email</h2>
+                <p style="text-align:center;color:#9ca3b0;margin:0 0 28px;font-size:14px;">Enter this code to complete your registration</p>
+                <div style="text-align:center;margin:0 0 28px;">
+                    <span style="display:inline-block;font-size:36px;font-weight:800;letter-spacing:12px;color:#fff;background:linear-gradient(135deg,#6366f1,#a855f7);padding:16px 32px;border-radius:12px;">{otp}</span>
+                </div>
+                <p style="text-align:center;color:#5a5f72;font-size:13px;margin:0;">This code expires in {OTP_EXPIRY_MINUTES} minutes.<br>If you didn't request this, ignore this email.</p>
+            </div>
+            ''',
+        )
+        mail.send(msg)
+        return True
+    except Exception as e:
+        app.logger.error(f'Failed to send OTP email to {email}: {e}')
+        return False
 
 # ─── Skill & Job Databases ────────────────────────────────────────────────────
 
@@ -666,7 +726,7 @@ def get_resume_tips(skills: list[dict[str, str]], education: list[str], experien
 def index():
     user = None
     if 'user_id' in session:
-        user = db.session.get(User, session['user_id'])
+        user = User.objects(id=session['user_id']).first()
     return render_template('index.html', user=user)
 
 
@@ -674,11 +734,11 @@ def index():
 def dashboard():
     if 'user_id' not in session:
         return redirect(url_for('login_page'))
-    user = db.session.get(User, session['user_id'])
+    user = User.objects(id=session['user_id']).first()
     if not user:
         session.clear()
         return redirect(url_for('login_page'))
-    history = AnalysisHistory.query.filter_by(user_id=user.id).order_by(AnalysisHistory.created_at.desc()).all()
+    history = AnalysisHistory.objects(user_id=str(user.id)).order_by('-created_at')
     return render_template('dashboard.html', user=user, history=history)
 
 
@@ -686,10 +746,10 @@ def dashboard():
 def api_history():
     if 'user_id' not in session:
         return jsonify({"error": "Unauthorized"}), 401
-    records = AnalysisHistory.query.filter_by(user_id=session['user_id']).order_by(AnalysisHistory.created_at.desc()).all()
+    records = AnalysisHistory.objects(user_id=session['user_id']).order_by('-created_at')
     return jsonify({"history": [
         {
-            "id": r.id,
+            "id": str(r.id),
             "filename": r.filename,
             "predicted_role": r.predicted_role,
             "confidence": r.confidence,
@@ -730,18 +790,135 @@ def api_register():
     if password != confirm:
         return jsonify({"error": "Passwords do not match"}), 400
 
-    if User.query.filter_by(email=email).first():
+    if User.objects(email=email).first():
         return jsonify({"error": "An account with this email already exists"}), 409
 
-    user = User(
-        fullname=fullname,
-        email=email,
-        password_hash=generate_password_hash(password),
-    )
-    db.session.add(user)
-    db.session.commit()
+    # Rate limit: prevent rapid OTP requests
+    recent = OtpVerification.objects(email=email, is_verified=False).order_by('-created_at').first()
+    if recent:
+        _created = recent.created_at.replace(tzinfo=timezone.utc) if recent.created_at.tzinfo is None else recent.created_at
+        elapsed = (datetime.now(timezone.utc) - _created).total_seconds()
+        if elapsed < OTP_COOLDOWN_SECONDS:
+            wait = int(OTP_COOLDOWN_SECONDS - elapsed)
+            return jsonify({"error": f"Please wait {wait} seconds before requesting another OTP"}), 429
 
-    return jsonify({"message": "Account created successfully!", "user": {"id": user.id, "fullname": user.fullname}}), 201
+    # Generate OTP and store pending registration
+    otp = _generate_otp()
+    pending = OtpVerification(
+        email=email,
+        otp=otp,
+        fullname=fullname,
+        password_hash=generate_password_hash(password),
+        expires_at=datetime.now(timezone.utc) + timedelta(minutes=OTP_EXPIRY_MINUTES),
+    )
+    pending.save()
+
+    if app.debug:
+        print(f'\n  [OTP] {email} -> {otp}  (expires in {OTP_EXPIRY_MINUTES}m)\n')
+
+    email_sent = _send_otp_email(email, otp)
+
+    return jsonify({
+        "message": "Verification code sent to your email!" if email_sent else "Email delivery failed, but you can proceed. Check server logs for the OTP.",
+        "redirect": "/verify-otp",
+        "email": email,
+        "email_sent": email_sent,
+    }), 200
+
+
+@app.route('/verify-otp')
+def verify_otp_page():
+    email = request.args.get('email', session.get('pending_email', ''))
+    if not email:
+        return redirect(url_for('register_page'))
+    return render_template('verify_otp.html', email=email)
+
+
+@app.route('/api/verify-otp', methods=['POST'])
+def api_verify_otp():
+    data = request.get_json()
+    email = (data.get('email') or '').strip().lower()
+    otp = (data.get('otp') or '').strip()
+
+    if not email or not otp:
+        return jsonify({"error": "Email and OTP are required"}), 400
+
+    pending = OtpVerification.objects(
+        email=email, otp=otp, is_verified=False
+    ).order_by('-created_at').first()
+
+    if not pending:
+        return jsonify({"error": "Invalid OTP. Please check and try again."}), 400
+
+    now = datetime.now(timezone.utc)
+    expires = pending.expires_at.replace(tzinfo=timezone.utc) if pending.expires_at.tzinfo is None else pending.expires_at
+    if now > expires:
+        return jsonify({"error": "OTP has expired. Please request a new one."}), 410
+
+    # Mark as verified
+    pending.is_verified = True
+    pending.save()
+
+    # Check again in case someone registered between OTP send and verify
+    if User.objects(email=email).first():
+        return jsonify({"error": "An account with this email already exists"}), 409
+
+    # Create the account
+    user = User(
+        fullname=pending.fullname,
+        email=email,
+        password_hash=pending.password_hash,
+        auth_provider='local',
+        last_login=datetime.now(timezone.utc),
+    )
+    user.save()
+
+    # Auto-login
+    session.clear()
+    session['user_id'] = str(user.id)
+    session['user_name'] = user.fullname
+
+    return jsonify({
+        "message": "Email verified! Account created successfully.",
+        "redirect": "/dashboard",
+    }), 201
+
+
+@app.route('/api/resend-otp', methods=['POST'])
+def api_resend_otp():
+    data = request.get_json()
+    email = (data.get('email') or '').strip().lower()
+
+    if not email:
+        return jsonify({"error": "Email is required"}), 400
+
+    # Rate limit
+    recent = OtpVerification.objects(email=email, is_verified=False).order_by('-created_at').first()
+    if not recent:
+        return jsonify({"error": "No pending registration found. Please sign up again."}), 404
+
+    elapsed = (datetime.now(timezone.utc) - recent.created_at).total_seconds()
+    if elapsed < OTP_COOLDOWN_SECONDS:
+        wait = int(OTP_COOLDOWN_SECONDS - elapsed)
+        return jsonify({"error": f"Please wait {wait} seconds before requesting another OTP"}), 429
+
+    # Generate new OTP
+    otp = _generate_otp()
+    pending = OtpVerification(
+        email=email,
+        otp=otp,
+        fullname=recent.fullname,
+        password_hash=recent.password_hash,
+        expires_at=datetime.now(timezone.utc) + timedelta(minutes=OTP_EXPIRY_MINUTES),
+    )
+    pending.save()
+
+    email_sent = _send_otp_email(email, otp)
+
+    return jsonify({
+        "message": "New code sent to your email!" if email_sent else "Email delivery failed. Check server logs.",
+        "email_sent": email_sent,
+    }), 200
 
 
 @app.route('/api/login', methods=['POST'])
@@ -753,7 +930,7 @@ def api_login():
     if not email or not password:
         return jsonify({"error": "Email and password are required"}), 400
 
-    user = User.query.filter_by(email=email).first()
+    user = User.objects(email=email).first()
 
     if not user or not user.password_hash or not check_password_hash(user.password_hash, password):
         if user and not user.password_hash:
@@ -762,13 +939,13 @@ def api_login():
         return jsonify({"error": "Invalid email or password"}), 401
 
     user.last_login = datetime.now(timezone.utc)
-    db.session.commit()
+    user.save()
 
     session.clear()
-    session['user_id'] = user.id
+    session['user_id'] = str(user.id)
     session['user_name'] = user.fullname
 
-    return jsonify({"message": "Login successful!", "redirect": "/dashboard", "user": {"id": user.id, "fullname": user.fullname}}), 200
+    return jsonify({"message": "Login successful!", "redirect": "/dashboard", "user": {"id": str(user.id), "fullname": user.fullname}}), 200
 
 
 @app.route('/logout')
@@ -780,12 +957,12 @@ def logout():
 # ─── OAuth Helpers ────────────────────────────────────────────────────────────
 
 def _find_or_create_oauth_user(email: str, name: str, picture: str | None, provider: str) -> User:
-    user = User.query.filter_by(email=email).first()
+    user = User.objects(email=email).first()
     if user:
         if picture and not user.profile_picture:
             user.profile_picture = picture
         user.last_login = datetime.now(timezone.utc)
-        db.session.commit()
+        user.save()
     else:
         user = User(
             fullname=name,
@@ -795,22 +972,45 @@ def _find_or_create_oauth_user(email: str, name: str, picture: str | None, provi
             profile_picture=picture,
             last_login=datetime.now(timezone.utc),
         )
-        db.session.add(user)
-        db.session.commit()
+        user.save()
     return user
 
 
 def _login_user(user: User) -> None:
     session.clear()
-    session['user_id'] = user.id
+    session['user_id'] = str(user.id)
     session['user_name'] = user.fullname
+
+
+# ─── OAuth Setup Check ────────────────────────────────────────────────────────
+
+@app.route('/auth/check')
+def oauth_check():
+    """Debug route — shows which OAuth providers are configured."""
+    return jsonify({
+        "google": {
+            "configured": _oauth_configured('google'),
+            "client_id_set": bool(GOOGLE_CLIENT_ID and 'your-' not in GOOGLE_CLIENT_ID),
+            "client_secret_set": bool(GOOGLE_CLIENT_SECRET and 'your-' not in GOOGLE_CLIENT_SECRET),
+            "callback_url": url_for('google_callback', _external=True),
+        },
+        "github": {
+            "configured": _oauth_configured('github'),
+            "client_id_set": bool(GITHUB_CLIENT_ID and 'your-' not in GITHUB_CLIENT_ID),
+            "client_secret_set": bool(GITHUB_CLIENT_SECRET and 'your-' not in GITHUB_CLIENT_SECRET),
+            "callback_url": url_for('github_callback', _external=True),
+        },
+        "instructions": "Replace placeholder values in .env with real credentials from Google Cloud Console and GitHub Developer Settings."
+    })
 
 
 # ─── Google OAuth Routes ──────────────────────────────────────────────────────
 
 @app.route('/auth/google')
 def google_login():
-    redirect_uri = url_for('google_callback', _external=True)
+    if not _oauth_configured('google'):
+        return redirect(url_for('login_page', error='oauth_not_configured'))
+    redirect_uri = 'http://127.0.0.1:5002/auth/google/callback'
     return oauth.google.authorize_redirect(redirect_uri)
 
 
@@ -820,7 +1020,9 @@ def google_callback():
         token = oauth.google.authorize_access_token()
         userinfo = token.get('userinfo')
         if not userinfo:
-            userinfo = oauth.google.get('https://openidconnect.googleapis.com/v1/userinfo').json()
+            resp = oauth.google.get('https://openidconnect.googleapis.com/v1/userinfo')
+            resp.raise_for_status()
+            userinfo = resp.json()
 
         email = userinfo['email'].lower()
         name = userinfo.get('name', email.split('@')[0])
@@ -829,7 +1031,8 @@ def google_callback():
         user = _find_or_create_oauth_user(email, name, picture, 'google')
         _login_user(user)
         return redirect(url_for('dashboard'))
-    except Exception:
+    except Exception as e:
+        app.logger.error(f'Google OAuth error: {e}')
         return redirect(url_for('login_page', error='oauth_failed'))
 
 
@@ -837,7 +1040,9 @@ def google_callback():
 
 @app.route('/auth/github')
 def github_login():
-    redirect_uri = url_for('github_callback', _external=True)
+    if not _oauth_configured('github'):
+        return redirect(url_for('login_page', error='oauth_not_configured'))
+    redirect_uri = 'http://127.0.0.1:5002/auth/github/callback'
     return oauth.github.authorize_redirect(redirect_uri)
 
 
@@ -846,11 +1051,13 @@ def github_callback():
     try:
         token = oauth.github.authorize_access_token()
         resp = oauth.github.get('user', token=token)
+        resp.raise_for_status()
         profile = resp.json()
 
         email = profile.get('email')
         if not email:
             emails_resp = oauth.github.get('user/emails', token=token)
+            emails_resp.raise_for_status()
             emails = emails_resp.json()
             primary = next((e for e in emails if e.get('primary') and e.get('verified')), None)
             email = primary['email'] if primary else emails[0]['email']
@@ -862,7 +1069,8 @@ def github_callback():
         user = _find_or_create_oauth_user(email, name, picture, 'github')
         _login_user(user)
         return redirect(url_for('dashboard'))
-    except Exception:
+    except Exception as e:
+        app.logger.error(f'GitHub OAuth error: {e}')
         return redirect(url_for('login_page', error='oauth_failed'))
 
 
@@ -909,8 +1117,7 @@ def upload_resume():
             confidence=top_role['confidence'],
             resume_score=resume_strength,
         )
-        db.session.add(record)
-        db.session.commit()
+        record.save()
 
     # Clean up uploaded file
     try:
