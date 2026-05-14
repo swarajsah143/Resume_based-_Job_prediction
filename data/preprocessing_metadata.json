@@ -1,0 +1,28 @@
+{
+  "datasets": {
+    "screening": {
+      "rows": 1000,
+      "cols": 16
+    },
+    "resumes": {
+      "rows": 10000,
+      "cols": 15
+    },
+    "jobs": {
+      "rows": 2500,
+      "cols": 15
+    },
+    "postings": {
+      "rows": 123849,
+      "cols": 11
+    },
+    "resume_job_pairs": {
+      "rows": 2526922,
+      "cols": 15
+    }
+  },
+  "skill_vocabulary_size": 5892,
+  "unique_roles_screening": 4,
+  "unique_roles_resumes": 24,
+  "unique_job_titles": 24
+}

@@ -4,7 +4,11 @@ Resume-Based Job Suggestion System — Flask Backend
 from __future__ import annotations
 
 import os
+from datetime import datetime, timezone
 from typing import Any, TypeVar
+
+from dotenv import load_dotenv
+load_dotenv()
 
 _T = TypeVar("_T")
 
@@ -18,16 +22,82 @@ def _take(items: list[_T], n: int) -> list[_T]:
         result.append(item)
     return result
 
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify, render_template, redirect, url_for, session
 from flask_cors import CORS
+from flask_sqlalchemy import SQLAlchemy
+from werkzeug.security import generate_password_hash, check_password_hash
+from authlib.integrations.flask_client import OAuth
 
 app = Flask(__name__)
+app.secret_key = os.environ.get('SECRET_KEY', 'resumeai-dev-secret-key-change-in-production')
 CORS(app)
 
-UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
+# ─── Database Configuration ──────────────────────────────────────────────────
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{os.path.join(BASE_DIR, 'resumeai.db')}"
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB
+
+db = SQLAlchemy(app)
+
+# ─── OAuth Configuration ─────────────────────────────────────────────────────
+
+oauth = OAuth(app)
+
+oauth.register(
+    name='google',
+    client_id=os.environ.get('GOOGLE_CLIENT_ID'),
+    client_secret=os.environ.get('GOOGLE_CLIENT_SECRET'),
+    server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
+    client_kwargs={'scope': 'openid email profile'},
+)
+
+oauth.register(
+    name='github',
+    client_id=os.environ.get('GITHUB_CLIENT_ID'),
+    client_secret=os.environ.get('GITHUB_CLIENT_SECRET'),
+    authorize_url='https://github.com/login/oauth/authorize',
+    access_token_url='https://github.com/login/oauth/access_token',
+    api_base_url='https://api.github.com/',
+    client_kwargs={'scope': 'user:email'},
+)
+
+
+# ─── User Model ──────────────────────────────────────────────────────────────
+
+class User(db.Model):
+    __tablename__ = 'users'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    fullname = db.Column(db.String(150), nullable=False)
+    email = db.Column(db.String(150), unique=True, nullable=False, index=True)
+    password_hash = db.Column(db.String(256), nullable=True)
+    auth_provider = db.Column(db.String(20), default='local')
+    profile_picture = db.Column(db.String(512), nullable=True)
+    last_login = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    analyses = db.relationship('AnalysisHistory', backref='user', lazy=True, order_by='AnalysisHistory.created_at.desc()')
+
+
+class AnalysisHistory(db.Model):
+    __tablename__ = 'analysis_history'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    filename = db.Column(db.String(255), nullable=False)
+    predicted_role = db.Column(db.String(150), nullable=False)
+    confidence = db.Column(db.Float, nullable=False)
+    resume_score = db.Column(db.Integer, nullable=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+with app.app_context():
+    db.create_all()
 
 # ─── Skill & Job Databases ────────────────────────────────────────────────────
 
@@ -360,11 +430,13 @@ def extract_text_from_docx(filepath):
 
 def extract_skills(text):
     """Extract skills from resume text using keyword matching."""
+    import re
     text_lower = text.lower()
     found_skills = []
     for category, skills in SKILL_DATABASE.items():
         for skill in skills:
-            if skill.lower() in text_lower:
+            # Use word boundaries for exact matching
+            if re.search(r'\b' + re.escape(skill.lower()) + r'\b', text_lower):
                 found_skills.append({
                     "name": skill.title() if len(skill) > 3 else skill.upper(),
                     "category": category.replace("_", " ").title()
@@ -460,7 +532,7 @@ def suggest_job_roles(skills: list[dict[str, str]]) -> list[dict[str, Any]]:
 
     for role_id, role_info in JOB_ROLES.items():
         required = role_info["required_skills"]
-        matched = [s for s in required if any(s in skill_name for skill_name in skill_names)]
+        matched = [s for s in required if s in skill_names]
         if len(matched) > 0:
             confidence = round((len(matched) / len(required)) * 100, 1)
             confidence = min(confidence, 98)  # Cap at 98%
@@ -592,7 +664,206 @@ def get_resume_tips(skills: list[dict[str, str]], education: list[str], experien
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    user = None
+    if 'user_id' in session:
+        user = db.session.get(User, session['user_id'])
+    return render_template('index.html', user=user)
+
+
+@app.route('/dashboard')
+def dashboard():
+    if 'user_id' not in session:
+        return redirect(url_for('login_page'))
+    user = db.session.get(User, session['user_id'])
+    if not user:
+        session.clear()
+        return redirect(url_for('login_page'))
+    history = AnalysisHistory.query.filter_by(user_id=user.id).order_by(AnalysisHistory.created_at.desc()).all()
+    return render_template('dashboard.html', user=user, history=history)
+
+
+@app.route('/api/history')
+def api_history():
+    if 'user_id' not in session:
+        return jsonify({"error": "Unauthorized"}), 401
+    records = AnalysisHistory.query.filter_by(user_id=session['user_id']).order_by(AnalysisHistory.created_at.desc()).all()
+    return jsonify({"history": [
+        {
+            "id": r.id,
+            "filename": r.filename,
+            "predicted_role": r.predicted_role,
+            "confidence": r.confidence,
+            "resume_score": r.resume_score,
+            "created_at": r.created_at.strftime('%d %b %Y, %I:%M %p'),
+        } for r in records
+    ]})
+
+
+@app.route('/login', methods=['GET'])
+def login_page():
+    if 'user_id' in session:
+        return redirect(url_for('dashboard'))
+    return render_template('login.html')
+
+
+@app.route('/register', methods=['GET'])
+def register_page():
+    if 'user_id' in session:
+        return redirect(url_for('dashboard'))
+    return render_template('register.html')
+
+
+@app.route('/api/register', methods=['POST'])
+def api_register():
+    data = request.get_json()
+    fullname = (data.get('fullname') or '').strip()
+    email = (data.get('email') or '').strip().lower()
+    password = data.get('password') or ''
+    confirm = data.get('confirm_password') or ''
+
+    if not fullname or len(fullname) < 2:
+        return jsonify({"error": "Full name must be at least 2 characters"}), 400
+    if not email or '@' not in email:
+        return jsonify({"error": "Please enter a valid email address"}), 400
+    if len(password) < 8:
+        return jsonify({"error": "Password must be at least 8 characters"}), 400
+    if password != confirm:
+        return jsonify({"error": "Passwords do not match"}), 400
+
+    if User.query.filter_by(email=email).first():
+        return jsonify({"error": "An account with this email already exists"}), 409
+
+    user = User(
+        fullname=fullname,
+        email=email,
+        password_hash=generate_password_hash(password),
+    )
+    db.session.add(user)
+    db.session.commit()
+
+    return jsonify({"message": "Account created successfully!", "user": {"id": user.id, "fullname": user.fullname}}), 201
+
+
+@app.route('/api/login', methods=['POST'])
+def api_login():
+    data = request.get_json()
+    email = (data.get('email') or '').strip().lower()
+    password = data.get('password') or ''
+
+    if not email or not password:
+        return jsonify({"error": "Email and password are required"}), 400
+
+    user = User.query.filter_by(email=email).first()
+
+    if not user or not user.password_hash or not check_password_hash(user.password_hash, password):
+        if user and not user.password_hash:
+            provider = user.auth_provider or 'social'
+            return jsonify({"error": f"This account uses {provider.title()} login. Please sign in with {provider.title()}."}), 401
+        return jsonify({"error": "Invalid email or password"}), 401
+
+    user.last_login = datetime.now(timezone.utc)
+    db.session.commit()
+
+    session.clear()
+    session['user_id'] = user.id
+    session['user_name'] = user.fullname
+
+    return jsonify({"message": "Login successful!", "redirect": "/dashboard", "user": {"id": user.id, "fullname": user.fullname}}), 200
+
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('login_page'))
+
+
+# ─── OAuth Helpers ────────────────────────────────────────────────────────────
+
+def _find_or_create_oauth_user(email: str, name: str, picture: str | None, provider: str) -> User:
+    user = User.query.filter_by(email=email).first()
+    if user:
+        if picture and not user.profile_picture:
+            user.profile_picture = picture
+        user.last_login = datetime.now(timezone.utc)
+        db.session.commit()
+    else:
+        user = User(
+            fullname=name,
+            email=email,
+            password_hash=None,
+            auth_provider=provider,
+            profile_picture=picture,
+            last_login=datetime.now(timezone.utc),
+        )
+        db.session.add(user)
+        db.session.commit()
+    return user
+
+
+def _login_user(user: User) -> None:
+    session.clear()
+    session['user_id'] = user.id
+    session['user_name'] = user.fullname
+
+
+# ─── Google OAuth Routes ──────────────────────────────────────────────────────
+
+@app.route('/auth/google')
+def google_login():
+    redirect_uri = url_for('google_callback', _external=True)
+    return oauth.google.authorize_redirect(redirect_uri)
+
+
+@app.route('/auth/google/callback')
+def google_callback():
+    try:
+        token = oauth.google.authorize_access_token()
+        userinfo = token.get('userinfo')
+        if not userinfo:
+            userinfo = oauth.google.get('https://openidconnect.googleapis.com/v1/userinfo').json()
+
+        email = userinfo['email'].lower()
+        name = userinfo.get('name', email.split('@')[0])
+        picture = userinfo.get('picture')
+
+        user = _find_or_create_oauth_user(email, name, picture, 'google')
+        _login_user(user)
+        return redirect(url_for('dashboard'))
+    except Exception:
+        return redirect(url_for('login_page', error='oauth_failed'))
+
+
+# ─── GitHub OAuth Routes ─────────────────────────────────────────────────────
+
+@app.route('/auth/github')
+def github_login():
+    redirect_uri = url_for('github_callback', _external=True)
+    return oauth.github.authorize_redirect(redirect_uri)
+
+
+@app.route('/auth/github/callback')
+def github_callback():
+    try:
+        token = oauth.github.authorize_access_token()
+        resp = oauth.github.get('user', token=token)
+        profile = resp.json()
+
+        email = profile.get('email')
+        if not email:
+            emails_resp = oauth.github.get('user/emails', token=token)
+            emails = emails_resp.json()
+            primary = next((e for e in emails if e.get('primary') and e.get('verified')), None)
+            email = primary['email'] if primary else emails[0]['email']
+
+        email = email.lower()
+        name = profile.get('name') or profile.get('login', email.split('@')[0])
+        picture = profile.get('avatar_url')
+
+        user = _find_or_create_oauth_user(email, name, picture, 'github')
+        _login_user(user)
+        return redirect(url_for('dashboard'))
+    except Exception:
+        return redirect(url_for('login_page', error='oauth_failed'))
 
 
 @app.route('/upload', methods=['POST'])
@@ -627,6 +898,19 @@ def upload_resume():
     resume_strength = calculate_resume_strength(skills, education, experience, text)
     suggested_roles = suggest_job_roles(skills)
     tips = get_resume_tips(skills, education, experience, resume_strength)
+
+    # Save analysis history for logged-in users
+    if 'user_id' in session and suggested_roles:
+        top_role = suggested_roles[0]
+        record = AnalysisHistory(
+            user_id=session['user_id'],
+            filename=file.filename,
+            predicted_role=top_role['title'],
+            confidence=top_role['confidence'],
+            resume_score=resume_strength,
+        )
+        db.session.add(record)
+        db.session.commit()
 
     # Clean up uploaded file
     try:
@@ -682,5 +966,24 @@ def skill_gap():
     return jsonify(gap)
 
 
+def find_available_port(start_port: int = 5002, end_port: int = 5100) -> int:
+    """Find a free port between start_port and end_port."""
+    import socket
+
+    for port in range(start_port, end_port + 1):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            try:
+                sock.bind(('0.0.0.0', port))
+                return port
+            except OSError:
+                continue
+
+    raise RuntimeError(f"No free port found between {start_port} and {end_port}")
+
+
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    default_port = int(os.environ.get('PORT', 5002))
+    port = find_available_port(default_port, default_port + 50)
+    print(f"Starting Flask app on http://127.0.0.1:{port}")
+    app.run(debug=True, host='0.0.0.0', port=port)

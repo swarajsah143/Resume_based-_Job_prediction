@@ -21,7 +21,13 @@
             <div class="nav-links">
                 <a href="#features">Features</a>
                 <a href="#how-it-works">How It Works</a>
-                <a href="#upload-section" class="nav-cta">Get Started</a>
+                {% if user %}
+                    <a href="/dashboard" style="color: var(--primary-light); font-weight: 500;">{{ user.fullname }}</a>
+                    <a href="/logout" class="nav-cta">Logout</a>
+                {% else %}
+                    <a href="/login">Login</a>
+                    <a href="/register" class="nav-cta">Sign Up</a>
+                {% endif %}
             </div>
         </div>
     </nav>
@@ -123,6 +129,7 @@
     <section class="how-it-works" id="how-it-works">
         <div class="section-container">
             <div class="section-header">
+                
                 <span class="section-tag">Process</span>
                 <h2 class="section-title">How It Works</h2>
                 <p class="section-subtitle">Three simple steps to get career-ready insights.</p>

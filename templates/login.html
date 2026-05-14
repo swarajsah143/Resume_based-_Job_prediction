@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login — ResumeAI</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/auth.css">
+</head>
+<body>
+
+    <!-- Animated Background -->
+    <div class="auth-bg">
+        <div class="grid-lines"></div>
+        <div class="orb orb-1"></div>
+        <div class="orb orb-2"></div>
+        <div class="orb orb-3"></div>
+    </div>
+
+    <!-- Login Card -->
+    <div class="auth-container">
+        <div class="auth-card">
+            <div class="auth-header">
+                <a href="/" class="auth-logo">
+                    <span class="logo-icon">&#9670;</span>
+                    <span>ResumeAI</span>
+                </a>
+                <h1 class="auth-title">Welcome back</h1>
+                <p class="auth-subtitle">Sign in to continue to your dashboard</p>
+            </div>
+
+            <!-- Alert -->
+            <div class="alert alert-error" id="alertBox">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                <span id="alertText"></span>
+            </div>
+
+            <form class="auth-form" id="loginForm" novalidate>
+                <!-- Email -->
+                <div class="form-group" id="emailGroup">
+                    <label for="email">Email</label>
+                    <div class="input-wrapper">
+                        <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="3"/><path d="M22 4l-10 8L2 4"/></svg>
+                        <input type="email" id="email" name="email" placeholder="you@example.com" autocomplete="email" required>
+                    </div>
+                    <span class="error-message" id="emailError">Please enter a valid email address</span>
+                </div>
+
+                <!-- Password -->
+                <div class="form-group" id="passwordGroup">
+                    <label for="password">Password</label>
+                    <div class="input-wrapper">
+                        <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="3"/><path d="M7 11V7a5 5 0 0110 0v4"/><circle cx="12" cy="16" r="1"/></svg>
+                        <input type="password" id="password" name="password" placeholder="Enter your password" autocomplete="current-password" required>
+                        <button type="button" class="toggle-password" onclick="togglePassword('password', this)" aria-label="Toggle password visibility">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                        </button>
+                    </div>
+                    <span class="error-message" id="passwordError">Password is required</span>
+                </div>
+
+                <!-- Options -->
+                <div class="form-options">
+                    <label class="checkbox-wrapper">
+                        <input type="checkbox" name="remember">
+                        <span>Remember me</span>
+                    </label>
+                    <a href="#" class="forgot-link">Forgot password?</a>
+                </div>
+
+                <!-- Submit -->
+                <button type="submit" class="btn-auth btn-auth-primary">
+                    <span class="btn-text">Sign In</span>
+                </button>
+
+                <!-- Divider -->
+                <div class="auth-divider"><span>or continue with</span></div>
+
+                <!-- Social -->
+                <div class="social-buttons">
+                    <a href="/auth/google" class="btn-social">
+                        <svg viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+                        Google
+                    </a>
+                    <a href="/auth/github" class="btn-social">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+                        GitHub
+                    </a>
+                </div>
+            </form>
+
+            <!-- Footer -->
+            <div class="auth-footer">
+                Don't have an account? <a href="/register">Create one</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function togglePassword(fieldId, btn) {
+            const input = document.getElementById(fieldId);
+            const isPassword = input.type === 'password';
+            input.type = isPassword ? 'text' : 'password';
+            btn.innerHTML = isPassword
+                ? '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>'
+                : '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+        }
+
+        function showAlert(message, type) {
+            const box = document.getElementById('alertBox');
+            const text = document.getElementById('alertText');
+            box.className = `alert alert-${type} show`;
+            text.textContent = message;
+        }
+
+        function validateEmail(email) {
+            return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+        }
+
+        // Show OAuth error if redirected back with ?error=oauth_failed
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('error') === 'oauth_failed') {
+            showAlert('Social login failed. Please try again or use email/password.', 'error');
+        }
+
+        document.getElementById('loginForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            let valid = true;
+
+            const email = document.getElementById('email');
+            const password = document.getElementById('password');
+            const emailGroup = document.getElementById('emailGroup');
+            const passwordGroup = document.getElementById('passwordGroup');
+
+            // Reset
+            emailGroup.classList.remove('error', 'success');
+            passwordGroup.classList.remove('error', 'success');
+
+            if (!email.value || !validateEmail(email.value)) {
+                emailGroup.classList.add('error');
+                valid = false;
+            } else {
+                emailGroup.classList.add('success');
+            }
+
+            if (!password.value) {
+                passwordGroup.classList.add('error');
+                valid = false;
+            } else {
+                passwordGroup.classList.add('success');
+            }
+
+            if (!valid) return;
+
+            const btn = this.querySelector('.btn-auth');
+            btn.classList.add('loading');
+
+            try {
+                const res = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        email: email.value,
+                        password: password.value,
+                    }),
+                });
+                const data = await res.json();
+                btn.classList.remove('loading');
+
+                if (res.ok) {
+                    showAlert('Login successful! Redirecting...', 'success');
+                    setTimeout(() => { window.location.href = data.redirect || '/dashboard'; }, 1000);
+                } else {
+                    showAlert(data.error || 'Login failed', 'error');
+                }
+            } catch (err) {
+                btn.classList.remove('loading');
+                showAlert('Network error. Please try again.', 'error');
+            }
+        });
+    </script>
+</body>
+</html>
