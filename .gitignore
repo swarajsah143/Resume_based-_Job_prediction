@@ -5,3 +5,5 @@ uploads/
 venv/
 *.pyc
 .vscode/
+data/resumes_cleaned.csv
+data/resume_job_pairs.csv
