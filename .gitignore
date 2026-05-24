@@ -1,9 +1,40 @@
+# Environment & Secrets
 .env
-resumeai.db
+.env.local
+.env.production
+
+# Python
 __pycache__/
-uploads/
-venv/
 *.pyc
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# IDE
 .vscode/
+.idea/
+
+# Data (too large for git)
 data/resumes_cleaned.csv
 data/resume_job_pairs.csv
+
+# Local files
+resumeai.db
+uploads/
+test_resume.pdf
+test_resume.txt
+
+# Vercel
+.vercel
+
+# OS
+.DS_Store
+Thumbs.db
+.env*

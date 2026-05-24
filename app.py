@@ -1,9 +1,12 @@
 """
 Resume-Based Job Suggestion System — Flask Backend
+Vercel-compatible serverless deployment
 """
 from __future__ import annotations
 
 import os
+import sys
+import logging
 import random
 import string
 from datetime import datetime, timezone, timedelta
@@ -11,6 +14,17 @@ from typing import Any, TypeVar
 
 from dotenv import load_dotenv
 load_dotenv()
+
+# ─── Logging Configuration ────────────────────────────────────────────────────
+
+IS_VERCEL = os.environ.get('VERCEL', '') == '1'
+
+logging.basicConfig(
+    level=logging.INFO if IS_VERCEL else logging.DEBUG,
+    format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
+    stream=sys.stderr,
+)
+logger = logging.getLogger('resumeai')
 
 _T = TypeVar("_T")
 
@@ -52,9 +66,25 @@ OTP_COOLDOWN_SECONDS = 60
 # ─── Database Configuration ──────────────────────────────────────────────────
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-mongoengine.connect(host=os.environ.get('MONGODB_URI', 'mongodb://localhost:27017/resumeai'))
 
-UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
+# MongoDB: connect with retry and timeout settings suitable for serverless
+_mongo_uri = os.environ.get('MONGODB_URI', 'mongodb://localhost:27017/resumeai')
+try:
+    mongoengine.connect(
+        host=_mongo_uri,
+        serverSelectionTimeoutMS=5000,
+        connectTimeoutMS=10000,
+        socketTimeoutMS=10000,
+    )
+    logger.info('MongoDB connection configured')
+except Exception as e:
+    logger.error(f'MongoDB connection error: {e}')
+
+# On Vercel, the filesystem is read-only except for /tmp
+if IS_VERCEL:
+    UPLOAD_FOLDER = '/tmp/uploads'
+else:
+    UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB
@@ -1010,7 +1040,7 @@ def oauth_check():
 def google_login():
     if not _oauth_configured('google'):
         return redirect(url_for('login_page', error='oauth_not_configured'))
-    redirect_uri = 'http://127.0.0.1:5002/auth/google/callback'
+    redirect_uri = url_for('google_callback', _external=True)
     return oauth.google.authorize_redirect(redirect_uri)
 
 
@@ -1042,7 +1072,7 @@ def google_callback():
 def github_login():
     if not _oauth_configured('github'):
         return redirect(url_for('login_page', error='oauth_not_configured'))
-    redirect_uri = 'http://127.0.0.1:5002/auth/github/callback'
+    redirect_uri = url_for('github_callback', _external=True)
     return oauth.github.authorize_redirect(redirect_uri)
 
 
@@ -1173,23 +1203,58 @@ def skill_gap():
     return jsonify(gap)
 
 
-def find_available_port(start_port: int = 5002, end_port: int = 5100) -> int:
-    """Find a free port between start_port and end_port."""
+# ─── Health Check Route ────────────────────────────────────────────────────────
+
+@app.route('/api/health')
+def health_check():
+    """Health check endpoint for monitoring."""
+    return jsonify({
+        "status": "healthy",
+        "environment": "vercel" if IS_VERCEL else "local",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    })
+
+
+# ─── Error Handlers ────────────────────────────────────────────────────────────
+
+@app.errorhandler(404)
+def not_found(e):
+    if request.path.startswith('/api/'):
+        return jsonify({"error": "Not found"}), 404
+    return render_template('index.html'), 404
+
+
+@app.errorhandler(500)
+def internal_error(e):
+    logger.error(f'Internal server error: {e}')
+    if request.path.startswith('/api/'):
+        return jsonify({"error": "Internal server error"}), 500
+    return render_template('index.html'), 500
+
+
+@app.errorhandler(413)
+def too_large(e):
+    return jsonify({"error": "File too large. Maximum size is 16 MB."}), 413
+
+
+# ─── Local Development Server ─────────────────────────────────────────────────
+# Only runs when executing this file directly — never on Vercel
+
+if __name__ == '__main__' and not IS_VERCEL:
     import socket
 
-    for port in range(start_port, end_port + 1):
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            try:
-                sock.bind(('0.0.0.0', port))
-                return port
-            except OSError:
-                continue
+    def find_available_port(start_port: int = 5002, end_port: int = 5100) -> int:
+        """Find a free port between start_port and end_port."""
+        for port in range(start_port, end_port + 1):
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                try:
+                    sock.bind(('0.0.0.0', port))
+                    return port
+                except OSError:
+                    continue
+        raise RuntimeError(f"No free port found between {start_port} and {end_port}")
 
-    raise RuntimeError(f"No free port found between {start_port} and {end_port}")
-
-
-if __name__ == '__main__':
     default_port = int(os.environ.get('PORT', 5002))
     port = find_available_port(default_port, default_port + 50)
     print(f"Starting Flask app on http://127.0.0.1:{port}")

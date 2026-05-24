@@ -7,7 +7,21 @@ Usage:
     python run.py --host 0.0.0.0 --port 5000
 """
 import argparse
-from app import app, find_available_port
+import socket
+from app import app
+
+
+def find_available_port(start_port: int = 5002, end_port: int = 5100) -> int:
+    """Find a free port between start_port and end_port."""
+    for port in range(start_port, end_port + 1):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            try:
+                sock.bind(('0.0.0.0', port))
+                return port
+            except OSError:
+                continue
+    raise RuntimeError(f"No free port found between {start_port} and {end_port}")
 
 
 def main():
