@@ -67,20 +67,116 @@ OTP_COOLDOWN_SECONDS = 60
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# MongoDB: connect with retry and timeout settings suitable for serverless
-_mongo_uri = os.environ.get('MONGODB_URI', 'mongodb://localhost:27017/resumeai')
-try:
-    mongoengine.connect(
-        host=_mongo_uri,
-        serverSelectionTimeoutMS=5000,
-        connectTimeoutMS=10000,
-        socketTimeoutMS=10000,
-    )
-    logger.info('MongoDB connection configured')
-except Exception as e:
-    logger.error(f'MongoDB connection error: {e}')
+# MongoDB Atlas connection — optimised for Vercel serverless cold-starts
+_mongo_uri = os.environ.get('MONGODB_URI', '')
 
-# On Vercel, the filesystem is read-only except for /tmp
+if not _mongo_uri:
+    logger.warning(
+        'MONGODB_URI is not set! Falling back to localhost. '
+        'Set this in Vercel Dashboard → Settings → Environment Variables.'
+    )
+    _mongo_uri = 'mongodb://localhost:27017/resumeai'
+
+def _connect_mongodb() -> bool:
+    """
+    Establish (or re-establish) the MongoEngine connection.
+
+    Serverless functions may reuse a warm container whose previous
+    connection has gone stale, so we disconnect first and then create
+    a fresh connection with aggressive timeouts.
+    """
+    try:
+        # Drop any lingering connections from a warm container
+        mongoengine.disconnect_all()
+
+        # Build connection kwargs suitable for serverless
+        connect_kwargs: dict[str, Any] = {
+            'host': _mongo_uri,
+
+            # ── Timeouts (in ms) ─────────────────────────────
+            # How long to wait for the driver to find a suitable server
+            'serverSelectionTimeoutMS': 5_000,
+            # TCP connect timeout
+            'connectTimeoutMS': 10_000,
+            # Per-operation socket timeout
+            'socketTimeoutMS': 20_000,
+
+            # ── Pool ─────────────────────────────────────────
+            # Serverless = one request per container; keep pool tiny
+            'maxPoolSize': 1,
+            'minPoolSize': 0,
+            # Close idle sockets quickly (seconds)
+            'maxIdleTimeMS': 45_000,
+
+            # ── Reliability ──────────────────────────────────
+            'retryWrites': True,
+            'retryReads': True,
+            'w': 'majority',
+
+            # ── TLS (required by Atlas) ──────────────────────
+            'tls': True,
+            'tlsAllowInvalidCertificates': False,
+
+            # ── Monitoring label in Atlas ────────────────────
+            'appName': 'ResumeAI-Vercel',
+        }
+
+        # Local dev uses plain mongodb:// — skip TLS for localhost
+        if _mongo_uri.startswith('mongodb://localhost') or _mongo_uri.startswith('mongodb://127.0.0.1'):
+            connect_kwargs.pop('tls', None)
+            connect_kwargs.pop('tlsAllowInvalidCertificates', None)
+            connect_kwargs.pop('w', None)
+            connect_kwargs['maxPoolSize'] = 5
+
+        mongoengine.connect(**connect_kwargs)
+
+        # Verify the connection actually works (ping)
+        from mongoengine.connection import get_db
+        db = get_db()
+        db.command('ping')
+
+        logger.info('✅ MongoDB connected successfully (database: %s)', db.name)
+        return True
+
+    except Exception as exc:
+        logger.error('❌ MongoDB connection failed: %s', exc, exc_info=True)
+        return False
+
+
+# Attempt initial connection at module load (covers warm-start reuse)
+_mongo_ok = _connect_mongodb()
+
+if not _mongo_ok:
+    logger.warning(
+        'App will start without a DB connection. '
+        'Routes that need MongoDB will attempt reconnection on first request.'
+    )
+
+
+@app.before_request
+def _ensure_db():
+    """
+    Re-check MongoDB connectivity before every request.
+    If the connection is dead (stale warm container), reconnect.
+    This prevents FUNCTION_INVOCATION_FAILED on cold/warm start flips.
+    """
+    global _mongo_ok
+    if _mongo_ok:
+        return  # fast path — already connected
+
+    _mongo_ok = _connect_mongodb()
+    if not _mongo_ok:
+        # Non-DB routes (health, static) should still work
+        if request.path in ('/', '/login', '/register', '/api/health'):
+            return
+        logger.error('MongoDB unavailable — returning 503 for %s', request.path)
+        return jsonify({
+            'error': 'Database temporarily unavailable. Please try again shortly.'
+        }), 503
+
+
+# ─── File Uploads ────────────────────────────────────────────────────────────
+# On Vercel the filesystem is read-only except for /tmp
 if IS_VERCEL:
     UPLOAD_FOLDER = '/tmp/uploads'
 else:
@@ -1207,10 +1303,20 @@ def skill_gap():
 
 @app.route('/api/health')
 def health_check():
-    """Health check endpoint for monitoring."""
+    """Health check endpoint for monitoring — also verifies MongoDB."""
+    db_status = 'unknown'
+    try:
+        from mongoengine.connection import get_db
+        db = get_db()
+        db.command('ping')
+        db_status = 'connected'
+    except Exception as exc:
+        db_status = f'error: {exc}'
+
     return jsonify({
-        "status": "healthy",
+        "status": "healthy" if db_status == 'connected' else "degraded",
         "environment": "vercel" if IS_VERCEL else "local",
+        "database": db_status,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     })
 
