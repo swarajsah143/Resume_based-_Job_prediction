@@ -6,7 +6,7 @@
     <title>Verify Email — ResumeAI</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;450;500;550;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/css/auth.css">
     <style>
         .otp-inputs {
@@ -29,13 +29,13 @@
             color: var(--text-primary);
             outline: none;
             transition: all 0.2s cubic-bezier(0.4,0,0.2,1);
-            caret-color: var(--accent);
+            caret-color: var(--primary);
         }
 
         .otp-inputs input:focus {
-            border-color: var(--accent);
-            background: rgba(99,102,241,0.08);
-            box-shadow: 0 0 0 3px rgba(99,102,241,0.15), 0 0 20px rgba(99,102,241,0.08);
+            border-color: var(--primary);
+            background: rgba(139,92,246,0.08);
+            box-shadow: 0 0 0 3px rgba(139,92,246,0.15), 0 0 20px rgba(139,92,246,0.08);
             transform: translateY(-2px);
         }
 
@@ -60,8 +60,8 @@
             display: inline-flex;
             align-items: center;
             gap: 8px;
-            background: rgba(99,102,241,0.08);
-            border: 1px solid rgba(99,102,241,0.15);
+            background: rgba(139,92,246,0.08);
+            border: 1px solid rgba(139,92,246,0.15);
             border-radius: 8px;
             padding: 6px 14px;
             font-size: 0.85rem;
@@ -105,7 +105,7 @@
 
         .resend-btn:hover:not(:disabled) {
             color: var(--cyan);
-            background: rgba(99,102,241,0.08);
+            background: rgba(139,92,246,0.08);
         }
 
         .resend-btn:disabled {

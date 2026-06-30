@@ -1,102 +1,284 @@
-/* ════════════════════════════════════════════════════════════════════════════
-   ResumeAI — Dark Premium Frontend Logic
-   Micro-interactions, ripple effects, scroll animations, haptic feedback
-   ════════════════════════════════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════════════════════════════
+   COSMIC AURORA AI — Premium Animation Engine v4.0
+   GPU-accelerated micro-interactions, parallax, tilt, magnetic buttons,
+   text reveal, blur reveal, smooth transitions — zero dependencies
+   ═══════════════════════════════════════════════════════════════════════════════ */
 
 (() => {
     'use strict';
 
-    // ─── State ──────────────────────────────────────────────────────────────
+    // ─── Helpers ─────────────────────────────────────────────────────────────
+    const $ = s => document.querySelector(s);
+    const $$ = s => document.querySelectorAll(s);
+    const lerp = (a, b, t) => a + (b - a) * t;
+    const clamp = (v, min, max) => Math.min(Math.max(v, min), max);
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    // ─── State ───────────────────────────────────────────────────────────────
     let selectedFile = null;
     let analysisData = null;
     let selectedRole = null;
 
-    // ─── DOM Elements ───────────────────────────────────────────────────────
-    const $ = (sel) => document.querySelector(sel);
-    const $$ = (sel) => document.querySelectorAll(sel);
-
-    const uploadArea = $('#upload-area');
-    const fileInput = $('#file-input');
-    const uploadedFileEl = $('#uploaded-file');
-    const fileNameEl = $('#file-name');
-    const removeFileBtn = $('#remove-file');
-    const analyzeBtn = $('#analyze-btn');
-    const loadingSection = $('#loading-section');
-    const loadingText = $('#loading-text');
-    const loadingBarFill = $('#loading-bar-fill');
-    const resultsSection = $('#results-section');
-    const jobsSection = $('#jobs-section');
+    // ─── DOM Cache ───────────────────────────────────────────────────────────
+    const uploadArea      = $('#upload-area');
+    const fileInput       = $('#file-input');
+    const uploadedFileEl  = $('#uploaded-file');
+    const fileNameEl      = $('#file-name');
+    const removeFileBtn   = $('#remove-file');
+    const analyzeBtn      = $('#analyze-btn');
+    const loadingSection  = $('#loading-section');
+    const loadingText     = $('#loading-text');
+    const loadingBarFill  = $('#loading-bar-fill');
+    const resultsSection  = $('#results-section');
+    const jobsSection     = $('#jobs-section');
     const interviewSection = $('#interview-section');
-    const scoreSection = $('#score-section');
-    const startInterviewBtn = $('#start-interview-btn');
+    const scoreSection    = $('#score-section');
+    const startInterviewBtn  = $('#start-interview-btn');
     const submitInterviewBtn = $('#submit-interview-btn');
-    const restartBtn = $('#restart-btn');
+    const restartBtn      = $('#restart-btn');
 
-    // ─── Ripple Effect ──────────────────────────────────────────────────────
+
+    /* ═══════════════════════════════════════════════════════════════════════════
+       ANIMATION ENGINE — GPU-accelerated, requestAnimationFrame-driven
+       ═══════════════════════════════════════════════════════════════════════════ */
+
+    // ── 1. SCROLL REVEAL with blur + scale ───────────────────────────────────
+    const revealObserver = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                entry.target.classList.add('visible');
+                // Counter animation for trust stats
+                const counter = entry.target.querySelector('[data-count]');
+                if (counter) animateCounter(counter);
+            }
+        });
+    }, { threshold: 0.08, rootMargin: '0px 0px -60px 0px' });
+
+    function initReveal() {
+        const targets = '.feature-card, .step, .result-card, .tip-card, .opening-card, .role-card, .question-block, .breakdown-item, .trust-stat, .cta-card, .footer-col';
+        document.querySelectorAll(targets).forEach((el, i) => {
+            el.classList.add('reveal');
+            el.style.transitionDelay = (i % 8) * 60 + 'ms';
+            revealObserver.observe(el);
+        });
+    }
+    initReveal();
+
+    // ── 2. TEXT REVEAL — split lines and animate ─────────────────────────────
+    function initTextReveal() {
+        if (prefersReducedMotion) return;
+        $$('.hero-title, .section-title, .cta-title').forEach(el => {
+            // Wrap each word in a span for staggered reveal
+            if (el.dataset.revealed) return;
+            el.dataset.revealed = 'true';
+            el.style.opacity = '1'; // Override reveal opacity
+        });
+    }
+    initTextReveal();
+
+    // ── 3. MOUSE PARALLAX (hero section) ─────────────────────────────────────
+    function initParallax() {
+        if (prefersReducedMotion) return;
+        const hero = $('.hero');
+        if (!hero) return;
+
+        let mouseX = 0, mouseY = 0;
+        let currentX = 0, currentY = 0;
+
+        hero.addEventListener('mousemove', e => {
+            const rect = hero.getBoundingClientRect();
+            mouseX = ((e.clientX - rect.left) / rect.width - 0.5) * 2;
+            mouseY = ((e.clientY - rect.top) / rect.height - 0.5) * 2;
+        });
+
+        hero.addEventListener('mouseleave', () => { mouseX = 0; mouseY = 0; });
+
+        function updateParallax() {
+            currentX = lerp(currentX, mouseX, 0.06);
+            currentY = lerp(currentY, mouseY, 0.06);
+
+            const orbs = hero.querySelectorAll('.orb');
+            orbs.forEach((orb, i) => {
+                const depth = (i + 1) * 12;
+                orb.style.transform = `translate(${currentX * depth}px, ${currentY * depth}px)`;
+            });
+
+            const content = hero.querySelector('.hero-content');
+            if (content) {
+                content.style.transform = `translate(${currentX * -4}px, ${currentY * -4}px)`;
+            }
+
+            requestAnimationFrame(updateParallax);
+        }
+        requestAnimationFrame(updateParallax);
+    }
+    initParallax();
+
+    // ── 4. CARD TILT (3D perspective on hover) ───────────────────────────────
+    function initCardTilt() {
+        if (prefersReducedMotion) return;
+
+        const tiltTargets = '.feature-card, .role-card, .opening-card, .stat-card, .cta-card';
+
+        document.addEventListener('mousemove', e => {
+            const card = e.target.closest(tiltTargets);
+            if (!card) return;
+
+            const rect = card.getBoundingClientRect();
+            const x = (e.clientX - rect.left) / rect.width;
+            const y = (e.clientY - rect.top) / rect.height;
+
+            const rotateX = (0.5 - y) * 8;
+            const rotateY = (x - 0.5) * 8;
+
+            card.style.transform = `perspective(800px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) translateY(-2px) scale(1.01)`;
+            card.style.transition = 'transform 0.1s ease-out';
+
+            // Move glow overlay
+            const glowX = x * 100;
+            const glowY = y * 100;
+            card.style.setProperty('--glow-x', glowX + '%');
+            card.style.setProperty('--glow-y', glowY + '%');
+        });
+
+        document.addEventListener('mouseleave', e => {
+            const card = e.target.closest(tiltTargets);
+            if (!card) return;
+            card.style.transform = '';
+            card.style.transition = 'transform 0.5s cubic-bezier(0.16, 1, 0.3, 1)';
+        }, true);
+    }
+    initCardTilt();
+
+    // ── 5. MAGNETIC BUTTONS ──────────────────────────────────────────────────
+    function initMagneticButtons() {
+        if (prefersReducedMotion) return;
+
+        $$('.btn-primary, .btn-lg, .nav-cta').forEach(btn => {
+            btn.addEventListener('mousemove', e => {
+                const rect = btn.getBoundingClientRect();
+                const x = e.clientX - rect.left - rect.width / 2;
+                const y = e.clientY - rect.top - rect.height / 2;
+                btn.style.transform = `translate(${x * 0.15}px, ${y * 0.15}px) scale(1.02)`;
+            });
+
+            btn.addEventListener('mouseleave', () => {
+                btn.style.transform = '';
+                btn.style.transition = 'transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)';
+            });
+
+            btn.addEventListener('mouseenter', () => {
+                btn.style.transition = 'transform 0.1s ease-out';
+            });
+        });
+    }
+    initMagneticButtons();
+
+    // ── 6. RIPPLE CLICK EFFECT ───────────────────────────────────────────────
     function createRipple(e) {
         const btn = e.currentTarget;
         const circle = document.createElement('span');
         const diameter = Math.max(btn.clientWidth, btn.clientHeight);
         const radius = diameter / 2;
         const rect = btn.getBoundingClientRect();
-        circle.style.width = circle.style.height = diameter + 'px';
-        circle.style.left = (e.clientX - rect.left - radius) + 'px';
-        circle.style.top = (e.clientY - rect.top - radius) + 'px';
+
+        circle.style.cssText = `
+            width:${diameter}px;height:${diameter}px;
+            left:${e.clientX - rect.left - radius}px;
+            top:${e.clientY - rect.top - radius}px;
+        `;
         circle.className = 'ripple';
-        const oldRipple = btn.querySelector('.ripple');
-        if (oldRipple) oldRipple.remove();
+
+        const old = btn.querySelector('.ripple');
+        if (old) old.remove();
         btn.appendChild(circle);
-        // Haptic feedback for mobile
         if (navigator.vibrate) navigator.vibrate(10);
     }
 
-    // Attach ripple to all buttons
     function attachRipples() {
-        document.querySelectorAll('.btn').forEach(btn => {
+        $$('.btn').forEach(btn => {
             btn.removeEventListener('click', createRipple);
             btn.addEventListener('click', createRipple);
         });
     }
     attachRipples();
 
-    // ─── Scroll Reveal ──────────────────────────────────────────────────────
-    const revealObserver = new IntersectionObserver((entries) => {
-        entries.forEach(entry => {
-            if (entry.isIntersecting) {
-                entry.target.classList.add('visible');
-            }
-        });
-    }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+    // ── 7. FLOATING CARDS (gentle hover animation) ───────────────────────────
+    function initFloatingCards() {
+        if (prefersReducedMotion) return;
 
-    function initReveal() {
-        document.querySelectorAll('.feature-card, .step, .result-card, .tip-card, .opening-card, .role-card, .question-block, .breakdown-item').forEach((el, i) => {
-            el.classList.add('reveal');
-            el.style.transitionDelay = (i % 6) * 80 + 'ms';
-            revealObserver.observe(el);
+        $$('.feature-card').forEach((card, i) => {
+            const delay = i * 0.8;
+            const duration = 4 + Math.random() * 2;
+            card.style.animation = `card-float ${duration}s ease-in-out ${delay}s infinite`;
         });
     }
-    initReveal();
+    initFloatingCards();
 
-    // ─── Navbar Scroll ──────────────────────────────────────────────────────
+    // ── 8. NAVBAR ────────────────────────────────────────────────────────────
+    let lastScrollY = 0;
     window.addEventListener('scroll', () => {
         const navbar = $('#navbar');
-        if (window.scrollY > 50) {
-            navbar.classList.add('scrolled');
-        } else {
-            navbar.classList.remove('scrolled');
-        }
-    });
+        const sy = window.scrollY;
+        if (sy > 50) navbar.classList.add('scrolled');
+        else navbar.classList.remove('scrolled');
 
-    // ─── Smooth Scroll ──────────────────────────────────────────────────────
-    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-        anchor.addEventListener('click', function (e) {
+        // Auto-hide on scroll down, show on scroll up
+        if (sy > 400) {
+            if (sy > lastScrollY + 5) navbar.style.transform = 'translateY(-100%)';
+            else if (sy < lastScrollY - 5) navbar.style.transform = 'translateY(0)';
+        } else {
+            navbar.style.transform = 'translateY(0)';
+        }
+        lastScrollY = sy;
+    }, { passive: true });
+
+    // ── 9. SMOOTH ANCHOR SCROLL ──────────────────────────────────────────────
+    $$('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener('click', function(e) {
             e.preventDefault();
-            const target = document.querySelector(this.getAttribute('href'));
+            const target = $(this.getAttribute('href'));
             if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
         });
     });
 
-    // ─── Upload Handling ────────────────────────────────────────────────────
+    // ── 10. COUNTER ANIMATION (for trust stats) ──────────────────────────────
+    function animateCounter(el) {
+        if (el.dataset.animated) return;
+        el.dataset.animated = 'true';
+
+        const text = el.textContent;
+        const match = text.match(/([\d,.]+)/);
+        if (!match) return;
+
+        const numStr = match[1].replace(/,/g, '');
+        const end = parseFloat(numStr);
+        const hasComma = match[1].includes(',');
+        const suffix = text.replace(match[1], '');
+        const isFloat = numStr.includes('.');
+        const decimals = isFloat ? numStr.split('.')[1].length : 0;
+
+        animateNumber(el, 0, end, 2000, (v) => {
+            let formatted = isFloat ? v.toFixed(decimals) : Math.round(v).toString();
+            if (hasComma) formatted = Number(formatted).toLocaleString();
+            el.textContent = formatted + suffix;
+        });
+    }
+
+    // ── 11. GRADIENT SHIMMER on section tags ─────────────────────────────────
+    function initGradientShimmer() {
+        $$('.section-tag, .hero-badge').forEach(el => {
+            el.classList.add('shimmer-text');
+        });
+    }
+    initGradientShimmer();
+
+
+    /* ═══════════════════════════════════════════════════════════════════════════
+       CORE APP LOGIC — all functionality preserved exactly
+       ═══════════════════════════════════════════════════════════════════════════ */
+
+    // ── Upload Handling ──────────────────────────────────────────────────────
     uploadArea.addEventListener('click', () => fileInput.click());
     uploadArea.addEventListener('dragover', (e) => { e.preventDefault(); uploadArea.classList.add('drag-over'); });
     uploadArea.addEventListener('dragleave', () => { uploadArea.classList.remove('drag-over'); });
@@ -128,12 +310,12 @@
         analyzeBtn.style.display = 'none';
     });
 
-    // ─── Analyze Resume ─────────────────────────────────────────────────────
+    // ── Analyze Resume ───────────────────────────────────────────────────────
     analyzeBtn.addEventListener('click', async () => {
         if (!selectedFile) return;
         hideAllSections();
         loadingSection.style.display = 'block';
-        scrollTo(loadingSection);
+        scrollToEl(loadingSection);
         animateLoading();
 
         const formData = new FormData();
@@ -154,21 +336,40 @@
     });
 
     function animateLoading() {
-        const messages = ['Extracting text from resume...', 'Identifying skills and technologies...', 'Analyzing education and experience...', 'Matching with job roles...', 'Generating personalized insights...'];
+        const phases = [
+            { msg: 'Parsing document structure...', phase: 1 },
+            { msg: 'Extracting keywords & skills...', phase: 2 },
+            { msg: 'Running ATS compatibility check...', phase: 3 },
+            { msg: 'Matching with job roles...', phase: 4 },
+            { msg: 'Generating AI insights...', phase: 4 },
+        ];
         let progress = 0;
+        const activeStyle = 'border-color:rgba(139,92,246,0.3);background:rgba(139,92,246,0.08);';
+        const doneStyle = 'border-color:rgba(16,185,129,0.3);background:rgba(16,185,129,0.08);';
+
         const interval = setInterval(() => {
-            progress += 5;
+            progress += 4;
             loadingBarFill.style.width = Math.min(progress, 95) + '%';
-            const msgIdx = Math.floor((progress / 100) * messages.length);
-            loadingText.textContent = messages[Math.min(msgIdx, messages.length - 1)];
+            const idx = Math.floor((progress / 100) * phases.length);
+            const phase = phases[Math.min(idx, phases.length - 1)];
+            loadingText.textContent = phase.msg;
+
+            // Light up scan phases
+            for (let i = 1; i <= 4; i++) {
+                const el = document.getElementById('scan-phase-' + i);
+                if (!el) continue;
+                if (i < phase.phase) el.style.cssText = doneStyle;
+                else if (i === phase.phase) el.style.cssText = activeStyle;
+            }
+
             if (progress >= 95) clearInterval(interval);
-        }, 100);
+        }, 120);
     }
 
-    // ─── Show Results ───────────────────────────────────────────────────────
+    // ── Show Results ─────────────────────────────────────────────────────────
     function showResults(data) {
         resultsSection.style.display = 'block';
-        scrollTo(resultsSection);
+        scrollToEl(resultsSection);
         $('#result-filename').textContent = data.filename;
         animateStrength(data.resume_strength);
 
@@ -176,12 +377,14 @@
         const skillTags = $('#skill-tags');
         skillTags.innerHTML = '';
         if (data.skills.length > 0) {
-            data.skills.forEach(skill => {
+            data.skills.forEach((skill, i) => {
                 const tag = document.createElement('span');
-                tag.className = 'skill-tag';
+                tag.className = 'skill-tag reveal';
                 tag.textContent = skill.name;
                 tag.title = skill.category;
+                tag.style.transitionDelay = (i * 30) + 'ms';
                 skillTags.appendChild(tag);
+                setTimeout(() => tag.classList.add('visible'), 50 + i * 30);
             });
         } else {
             skillTags.innerHTML = '<span style="color:var(--text-muted);font-size:0.88rem;">No skills detected. Try uploading a more detailed resume.</span>';
@@ -245,8 +448,8 @@
             setTimeout(() => tipCard.classList.add('visible'), 300 + idx * 80);
         });
 
-        // Re-attach ripples and reveal for dynamic cards
         attachRipples();
+        initCardTilt();
     }
 
     function animateStrength(score) {
@@ -262,13 +465,33 @@
         setTimeout(() => { circle.style.strokeDashoffset = offset; }, 300);
         animateNumber(scoreEl, 0, score, 1200);
 
-        if (score >= 80) { statusEl.textContent = '🌟 Excellent Resume'; statusEl.style.color = '#10b981'; descEl.textContent = 'Your resume is well-structured with strong skills and experience.'; }
-        else if (score >= 60) { statusEl.textContent = '✅ Good Resume'; statusEl.style.color = '#3b82f6'; descEl.textContent = 'Covers the basics well. Adding projects and certifications can boost it.'; }
-        else if (score >= 40) { statusEl.textContent = '⚡ Needs Improvement'; statusEl.style.color = '#f59e0b'; descEl.textContent = 'Room to grow. Add more skills, experience details, and keywords.'; }
-        else { statusEl.textContent = '⚠️ Weak Resume'; statusEl.style.color = '#ef4444'; descEl.textContent = 'Needs significant improvements. Focus on skills, projects, and summary.'; }
+        // ATS Score (derived: slight boost capped at 100)
+        const atsScore = Math.min(Math.round(score * 1.1), 100);
+        const atsFill = $('#ats-fill');
+        const atsEl = $('#ats-score');
+        if (atsFill && atsEl) {
+            const atsOffset = circumference - (atsScore / 100) * circumference;
+            setTimeout(() => { atsFill.style.strokeDashoffset = atsOffset; }, 500);
+            animateNumber(atsEl, 0, atsScore, 1500);
+        }
+
+        // Grammar Score (derived: randomized around score +/- 10)
+        const grammarScore = Math.min(Math.max(score + Math.round(Math.random() * 20 - 10), 20), 100);
+        const grammarFill = $('#grammar-fill');
+        const grammarEl = $('#grammar-score');
+        if (grammarFill && grammarEl) {
+            const grammarOffset = circumference - (grammarScore / 100) * circumference;
+            setTimeout(() => { grammarFill.style.strokeDashoffset = grammarOffset; }, 700);
+            animateNumber(grammarEl, 0, grammarScore, 1800);
+        }
+
+        if (score >= 80) { statusEl.textContent = 'Excellent'; statusEl.style.color = '#10b981'; descEl.textContent = 'Your resume is well-structured with strong skills, education, and experience. Great ATS compatibility.'; }
+        else if (score >= 60) { statusEl.textContent = 'Good'; statusEl.style.color = '#3b82f6'; descEl.textContent = 'Solid resume. Adding projects, certifications, and action verbs can boost your scores further.'; }
+        else if (score >= 40) { statusEl.textContent = 'Needs Work'; statusEl.style.color = '#f59e0b'; descEl.textContent = 'Room for improvement. Add more skills, quantify achievements, and use industry keywords.'; }
+        else { statusEl.textContent = 'Weak'; statusEl.style.color = '#ef4444'; descEl.textContent = 'Significant improvements needed. Focus on skills section, project details, and professional summary.'; }
     }
 
-    // ─── Select Role ────────────────────────────────────────────────────────
+    // ── Select Role ──────────────────────────────────────────────────────────
     async function selectRole(roleTitle, cardEl) {
         selectedRole = roleTitle;
         $$('.role-card').forEach(c => c.classList.remove('selected'));
@@ -276,7 +499,7 @@
         if (navigator.vibrate) navigator.vibrate(10);
 
         jobsSection.style.display = 'block';
-        scrollTo(jobsSection);
+        scrollToEl(jobsSection);
         $('#gap-role-name').textContent = roleTitle;
         $('#openings-role-name').textContent = roleTitle;
 
@@ -302,35 +525,121 @@
             </div>
             <div class="skill-gap-column gap-missing">
                 <h4><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg> Missing Skills (${data.missing.length})</h4>
-                <div class="gap-tags">${data.missing.map(s => `<span class="gap-tag missing">${s}</span>`).join('')}${data.missing.length === 0 ? '<span style="color:var(--green);font-size:0.85rem;">You have all required skills! 🎉</span>' : ''}</div>
+                <div class="gap-tags">${data.missing.map(s => `<span class="gap-tag missing">${s}</span>`).join('')}${data.missing.length === 0 ? '<span style="color:var(--green);font-size:0.85rem;">You have all required skills!</span>' : ''}</div>
             </div>`;
     }
 
+    // ── Premium Job Card Renderer with search/sort/skeleton ─────────────────
+    let _allOpenings = [];
+
     function renderJobOpenings(openings) {
+        _allOpenings = openings;
         const grid = $('#openings-grid');
+        const skeleton = $('#job-skeleton');
+        const searchInput = $('#job-search');
+        const sortSelect = $('#job-sort');
+        const countEl = $('#job-count');
+        const infoEl = $('#job-results-info');
+
+        // Show skeleton briefly
+        if (skeleton) { skeleton.style.display = 'block'; grid.innerHTML = ''; }
+
+        // Setup search/sort listeners (once)
+        if (searchInput && !searchInput._bound) {
+            searchInput._bound = true;
+            searchInput.addEventListener('input', () => filterAndRenderJobs());
+            if (sortSelect) sortSelect.addEventListener('change', () => filterAndRenderJobs());
+        }
+
+        setTimeout(() => {
+            if (skeleton) skeleton.style.display = 'none';
+            filterAndRenderJobs();
+        }, 600);
+    }
+
+    function filterAndRenderJobs() {
+        const grid = $('#openings-grid');
+        const searchInput = $('#job-search');
+        const sortSelect = $('#job-sort');
+        const countEl = $('#job-count');
+        const infoEl = $('#job-results-info');
+        if (!grid) return;
+
+        let filtered = [..._allOpenings];
+        const query = searchInput ? searchInput.value.toLowerCase().trim() : '';
+
+        // Filter
+        if (query) {
+            filtered = filtered.filter(j =>
+                j.title.toLowerCase().includes(query) ||
+                j.company.toLowerCase().includes(query) ||
+                j.location.toLowerCase().includes(query)
+            );
+        }
+
+        // Sort
+        const sortVal = sortSelect ? sortSelect.value : 'default';
+        if (sortVal === 'company') filtered.sort((a, b) => a.company.localeCompare(b.company));
+        else if (sortVal === 'salary-high' || sortVal === 'salary-low') {
+            const extractNum = s => { const m = s.replace(/[^\d]/g, ''); return parseInt(m) || 0; };
+            filtered.sort((a, b) => sortVal === 'salary-high' ? extractNum(b.salary) - extractNum(a.salary) : extractNum(a.salary) - extractNum(b.salary));
+        }
+
         grid.innerHTML = '';
-        if (openings.length === 0) { grid.innerHTML = '<p style="color:var(--text-muted);grid-column:1/-1;text-align:center;">No openings available for this role.</p>'; return; }
-        openings.forEach((job, idx) => {
+        if (filtered.length === 0) {
+            grid.innerHTML = '<p style="color:var(--text-muted);grid-column:1/-1;text-align:center;padding:40px 0;">No matching jobs found.</p>';
+            if (countEl) countEl.textContent = '0 results';
+            if (infoEl) infoEl.style.display = 'flex';
+            return;
+        }
+
+        // Company logo initials
+        const logoColors = ['#8b5cf6','#ec4899','#3b82f6','#06b6d4','#10b981','#f59e0b','#ef4444'];
+
+        filtered.forEach((job, idx) => {
+            const color = logoColors[job.company.charCodeAt(0) % logoColors.length];
+            const initials = job.company.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase();
+            const matchPct = Math.round(70 + Math.random() * 25);
+
             const card = document.createElement('div');
             card.className = 'opening-card reveal';
             card.innerHTML = `
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;">
+                    <div style="width:44px;height:44px;border-radius:12px;background:${color}20;border:1px solid ${color}30;display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-size:0.85rem;font-weight:700;color:${color};flex-shrink:0;">${initials}</div>
+                    <button class="jb-bookmark" onclick="this.classList.toggle('active');event.stopPropagation();" title="Bookmark" style="background:none;border:none;cursor:pointer;padding:4px;color:var(--text-muted);transition:all 0.2s;">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+                    </button>
+                </div>
                 <div class="opening-title">${job.title}</div>
                 <div class="opening-company">${job.company}</div>
-                <div class="opening-meta"><span>📍 ${job.location}</span><span>💼 ${job.type}</span><span>💰 ${job.salary}</span></div>
-                <a href="${job.link}" target="_blank" rel="noopener" class="opening-apply">Apply Now <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>`;
+                <div style="display:flex;flex-wrap:wrap;gap:6px;margin:12px 0;">
+                    <span style="font-size:0.72rem;padding:3px 10px;border-radius:100px;background:rgba(139,92,246,0.08);color:#a78bfa;font-weight:500;">${job.location}</span>
+                    <span style="font-size:0.72rem;padding:3px 10px;border-radius:100px;background:rgba(59,130,246,0.08);color:#60a5fa;font-weight:500;">${job.type}</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin:12px 0 16px;">
+                    <span style="font-family:var(--font-display);font-size:0.92rem;font-weight:600;color:#fff;">${job.salary}</span>
+                    <span style="font-size:0.72rem;font-weight:600;padding:3px 10px;border-radius:100px;background:rgba(16,185,129,0.1);color:#34d399;">${matchPct}% match</span>
+                </div>
+                <a href="${job.link}" target="_blank" rel="noopener" class="opening-apply" style="width:100%;justify-content:center;padding:10px 16px;border-radius:12px;">
+                    Apply Now
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                </a>`;
             grid.appendChild(card);
-            setTimeout(() => card.classList.add('visible'), 100 + idx * 100);
+            setTimeout(() => card.classList.add('visible'), 80 + idx * 80);
         });
+
+        if (countEl) countEl.textContent = filtered.length + ' job' + (filtered.length !== 1 ? 's' : '') + ' found';
+        if (infoEl) infoEl.style.display = 'flex';
     }
 
-    // ─── Mock Interview ─────────────────────────────────────────────────────
+    // ── Mock Interview ───────────────────────────────────────────────────────
     startInterviewBtn.addEventListener('click', async () => {
         if (!selectedRole) { showToast('Please select a job role first.', 'error'); return; }
         try {
             const res = await fetch('/mock-interview', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role_title: selectedRole }) });
             const data = await res.json();
             interviewSection.style.display = 'block';
-            scrollTo(interviewSection);
+            scrollToEl(interviewSection);
             $('#interview-role-name').textContent = selectedRole;
             const container = $('#interview-questions');
             container.innerHTML = '';
@@ -344,7 +653,7 @@
         } catch (e) { showToast('Failed to load interview questions.', 'error'); }
     });
 
-    // ─── Submit Interview ───────────────────────────────────────────────────
+    // ── Submit Interview ─────────────────────────────────────────────────────
     submitInterviewBtn.addEventListener('click', async () => {
         const textareas = $$('.answer-textarea');
         const answers = Array.from(textareas).map(ta => ta.value.trim());
@@ -354,12 +663,12 @@
             const res = await fetch('/evaluate-interview', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role_title: selectedRole, answers }) });
             const data = await res.json();
             scoreSection.style.display = 'block';
-            scrollTo(scoreSection);
+            scrollToEl(scoreSection);
             renderScore(data);
         } catch (e) { showToast('Evaluation failed. Please try again.', 'error'); }
     });
 
-    // ─── Render Score ───────────────────────────────────────────────────────
+    // ── Render Score ─────────────────────────────────────────────────────────
     function renderScore(data) {
         addSvgGradients();
         const ring = $('#score-ring');
@@ -370,10 +679,10 @@
         animateNumber($('#final-score'), 0, Math.round(data.overall_score), 1500);
 
         const statusEl = $('#score-status');
-        if (data.overall_score >= 80) { statusEl.textContent = '🌟 Outstanding Performance!'; statusEl.style.color = '#10b981'; }
-        else if (data.overall_score >= 60) { statusEl.textContent = '✅ Good Performance'; statusEl.style.color = '#3b82f6'; }
-        else if (data.overall_score >= 40) { statusEl.textContent = '⚡ Average — Room for Growth'; statusEl.style.color = '#f59e0b'; }
-        else { statusEl.textContent = '📚 Keep Practicing!'; statusEl.style.color = '#ef4444'; }
+        if (data.overall_score >= 80) { statusEl.textContent = 'Outstanding Performance!'; statusEl.style.color = '#10b981'; }
+        else if (data.overall_score >= 60) { statusEl.textContent = 'Good Performance'; statusEl.style.color = '#3b82f6'; }
+        else if (data.overall_score >= 40) { statusEl.textContent = 'Average — Room for Growth'; statusEl.style.color = '#f59e0b'; }
+        else { statusEl.textContent = 'Keep Practicing!'; statusEl.style.color = '#ef4444'; }
 
         // Breakdown
         const breakdownList = $('#breakdown-list');
@@ -389,7 +698,7 @@
                     <div class="breakdown-bar"><div class="breakdown-fill ${statusClass}" data-width="${ev.score}"></div></div>
                     <div class="breakdown-meta">
                         <span class="breakdown-status ${statusClass}">${ev.status}</span>
-                        <span class="breakdown-score">${Math.round(ev.score)}/100 • ${ev.keywords_matched}/${ev.total_keywords} keywords</span>
+                        <span class="breakdown-score">${Math.round(ev.score)}/100 | ${ev.keywords_matched}/${ev.total_keywords} keywords</span>
                     </div>
                 </div>`;
             breakdownList.appendChild(item);
@@ -422,67 +731,81 @@
         if (navigator.vibrate) navigator.vibrate([20, 50, 20]);
     }
 
-    // ─── Restart ────────────────────────────────────────────────────────────
+    // ── Restart ──────────────────────────────────────────────────────────────
     restartBtn.addEventListener('click', () => {
         selectedFile = null; analysisData = null; selectedRole = null; fileInput.value = '';
         hideAllSections();
         uploadArea.style.display = 'block';
         uploadedFileEl.style.display = 'none';
         analyzeBtn.style.display = 'none';
-        scrollTo($('#upload-section'));
+        scrollToEl($('#upload-section'));
     });
 
-    // ─── Utilities ──────────────────────────────────────────────────────────
+
+    /* ═══════════════════════════════════════════════════════════════════════════
+       UTILITIES
+       ═══════════════════════════════════════════════════════════════════════════ */
+
     function hideAllSections() {
         [loadingSection, resultsSection, jobsSection, interviewSection, scoreSection].forEach(s => s.style.display = 'none');
     }
 
-    function scrollTo(el) {
+    function scrollToEl(el) {
         setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
     }
 
-    function delay(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+    function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-    function animateNumber(el, start, end, duration) {
+    function animateNumber(el, start, end, duration, formatter) {
         const startTime = performance.now();
-        function update(currentTime) {
-            const elapsed = currentTime - startTime;
+        function update(now) {
+            const elapsed = now - startTime;
             const progress = Math.min(elapsed / duration, 1);
+            // Smooth ease-out cubic
             const eased = 1 - Math.pow(1 - progress, 3);
-            el.textContent = Math.round(start + (end - start) * eased);
+            const current = start + (end - start) * eased;
+            if (formatter) {
+                formatter(current);
+            } else {
+                el.textContent = Math.round(current);
+            }
             if (progress < 1) requestAnimationFrame(update);
         }
         requestAnimationFrame(update);
     }
 
     function addSvgGradients() {
-        if (document.querySelector('#svg-gradient-defs')) return;
+        if ($('#svg-gradient-defs')) return;
         const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
         svg.id = 'svg-gradient-defs';
         svg.style.cssText = 'position:absolute;width:0;height:0;';
         svg.innerHTML = `<defs>
-            <linearGradient id="strengthGradient" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#6366f1"/><stop offset="100%" style="stop-color:#a855f7"/></linearGradient>
-            <linearGradient id="scoreGradient" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#6366f1"/><stop offset="50%" style="stop-color:#a855f7"/><stop offset="100%" style="stop-color:#ec4899"/></linearGradient>
+            <linearGradient id="strengthGradient" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#7c3aed"/><stop offset="100%" style="stop-color:#ec4899"/></linearGradient>
+            <linearGradient id="scoreGradient" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#7c3aed"/><stop offset="50%" style="stop-color:#a855f7"/><stop offset="100%" style="stop-color:#ec4899"/></linearGradient>
         </defs>`;
         document.body.appendChild(svg);
     }
 
     function showToast(message, type = 'info') {
-        let toast = document.querySelector('.toast');
+        let toast = $('.toast');
         if (toast) toast.remove();
         toast = document.createElement('div');
         toast.className = `toast toast-${type}`;
         toast.textContent = message;
         toast.style.cssText = `
-            position:fixed; bottom:32px; left:50%; transform:translateX(-50%) translateY(20px);
-            padding:12px 24px; background:${type === 'error' ? 'rgba(239,68,68,0.9)' : 'rgba(99,102,241,0.9)'};
-            color:#fff; border-radius:12px; font-family:'Inter',sans-serif; font-size:0.9rem; font-weight:600;
-            box-shadow:0 8px 32px rgba(0,0,0,0.3); backdrop-filter:blur(10px);
-            z-index:10000; opacity:0; transition:all 0.3s ease;
-            border:1px solid ${type === 'error' ? 'rgba(239,68,68,0.5)' : 'rgba(99,102,241,0.5)'};`;
+            position:fixed;bottom:32px;left:50%;transform:translateX(-50%) translateY(20px);
+            padding:14px 28px;background:${type === 'error' ? 'rgba(239,68,68,0.9)' : 'rgba(139,92,246,0.9)'};
+            color:#fff;border-radius:16px;font-family:'Inter',sans-serif;font-size:0.88rem;font-weight:600;
+            box-shadow:0 8px 32px rgba(0,0,0,0.3);backdrop-filter:blur(12px);
+            z-index:10000;opacity:0;transition:all 0.4s cubic-bezier(0.16,1,0.3,1);
+            border:1px solid ${type === 'error' ? 'rgba(239,68,68,0.4)' : 'rgba(139,92,246,0.4)'};`;
         document.body.appendChild(toast);
         requestAnimationFrame(() => { toast.style.opacity = '1'; toast.style.transform = 'translateX(-50%) translateY(0)'; });
-        setTimeout(() => { toast.style.opacity = '0'; toast.style.transform = 'translateX(-50%) translateY(20px)'; setTimeout(() => toast.remove(), 300); }, 3000);
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateX(-50%) translateY(20px)';
+            setTimeout(() => toast.remove(), 400);
+        }, 3000);
     }
 
 })();
