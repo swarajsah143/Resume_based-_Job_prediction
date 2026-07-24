@@ -366,6 +366,39 @@
         }, 120);
     }
 
+    // Render a compact, single-line, collapsible list (education / experience)
+    function renderKeywordList(container, countEl, items, emptyMsg, limit) {
+        container.innerHTML = '';
+        const seen = new Set(), clean = [];
+        (items || []).forEach(raw => {
+            const t = String(raw).replace(/\s+/g, ' ').trim();
+            const key = t.toLowerCase();
+            if (t && !seen.has(key)) { seen.add(key); clean.push(t); }
+        });
+        countEl.textContent = clean.length || '';
+        if (!clean.length) { container.innerHTML = `<div class="kw-empty">${emptyMsg}</div>`; return; }
+        clean.forEach((t, i) => {
+            const row = document.createElement('div');
+            row.className = 'kw-item reveal' + (i >= limit ? ' kw-hidden' : '');
+            row.title = t;
+            row.textContent = t;
+            container.appendChild(row);
+            setTimeout(() => row.classList.add('visible'), 60 + i * 25);
+        });
+        if (clean.length > limit) {
+            const hidden = clean.length - limit;
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'kw-toggle';
+            btn.textContent = `Show ${hidden} more`;
+            btn.addEventListener('click', () => {
+                const open = container.classList.toggle('kw-expanded');
+                btn.textContent = open ? 'Show less' : `Show ${hidden} more`;
+            });
+            container.appendChild(btn);
+        }
+    }
+
     // ── Show Results ─────────────────────────────────────────────────────────
     function showResults(data) {
         resultsSection.style.display = 'block';
@@ -373,40 +406,42 @@
         $('#result-filename').textContent = data.filename;
         animateStrength(data.resume_strength);
 
-        // Skills
+        // Skills — grouped by category, compact
         const skillTags = $('#skill-tags');
         skillTags.innerHTML = '';
+        $('#skills-count').textContent = data.skills.length || '';
         if (data.skills.length > 0) {
-            data.skills.forEach((skill, i) => {
-                const tag = document.createElement('span');
-                tag.className = 'skill-tag reveal';
-                tag.textContent = skill.name;
-                tag.title = skill.category;
-                tag.style.transitionDelay = (i * 30) + 'ms';
-                skillTags.appendChild(tag);
-                setTimeout(() => tag.classList.add('visible'), 50 + i * 30);
+            const groups = {};
+            data.skills.forEach(s => { (groups[s.category] = groups[s.category] || []).push(s.name); });
+            let gi = 0;
+            Object.keys(groups).sort().forEach(cat => {
+                const group = document.createElement('div');
+                group.className = 'skill-group';
+                const label = document.createElement('div');
+                label.className = 'skill-group-label';
+                label.textContent = `${cat} · ${groups[cat].length}`;
+                group.appendChild(label);
+                const row = document.createElement('div');
+                row.className = 'skill-tags-row';
+                groups[cat].forEach(name => {
+                    const tag = document.createElement('span');
+                    tag.className = 'skill-tag reveal';
+                    tag.textContent = name;
+                    tag.style.transitionDelay = (gi * 25) + 'ms';
+                    row.appendChild(tag);
+                    setTimeout(() => tag.classList.add('visible'), 50 + gi * 25);
+                    gi++;
+                });
+                group.appendChild(row);
+                skillTags.appendChild(group);
             });
         } else {
             skillTags.innerHTML = '<span style="color:var(--text-muted);font-size:0.88rem;">No skills detected. Try uploading a more detailed resume.</span>';
         }
 
-        // Education
-        const eduList = $('#education-list');
-        eduList.innerHTML = '';
-        if (data.education.length > 0) {
-            data.education.forEach(item => { const li = document.createElement('li'); li.textContent = item; eduList.appendChild(li); });
-        } else {
-            eduList.innerHTML = '<li style="list-style:none;padding-left:0;">No education details detected.</li>';
-        }
-
-        // Experience
-        const expList = $('#experience-list');
-        expList.innerHTML = '';
-        if (data.experience.length > 0) {
-            data.experience.forEach(item => { const li = document.createElement('li'); li.textContent = item; expList.appendChild(li); });
-        } else {
-            expList.innerHTML = '<li style="list-style:none;padding-left:0;">No experience details detected.</li>';
-        }
+        // Education & Experience — clean, single-line, collapsible
+        renderKeywordList($('#education-list'), $('#edu-count'), data.education, 'No education details detected.', 3);
+        renderKeywordList($('#experience-list'), $('#exp-count'), data.experience, 'No experience details detected.', 3);
 
         // Suggested Roles
         const rolesGrid = $('#roles-grid');
@@ -601,6 +636,12 @@
             const initials = job.company.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase();
             const matchPct = Math.round(70 + Math.random() * 25);
 
+            // Link to the company's own careers / application page. Fall back to a
+            // Google "<company> careers" search if a listing is missing its link.
+            const applyUrl = job.link
+                ? job.link
+                : 'https://www.google.com/search?q=' + encodeURIComponent(`${job.company} careers ${job.title}`);
+
             const card = document.createElement('div');
             card.className = 'opening-card reveal';
             card.innerHTML = `
@@ -620,7 +661,7 @@
                     <span style="font-family:var(--font-display);font-size:0.92rem;font-weight:600;color:#fff;">${job.salary}</span>
                     <span style="font-size:0.72rem;font-weight:600;padding:3px 10px;border-radius:100px;background:rgba(16,185,129,0.1);color:#34d399;">${matchPct}% match</span>
                 </div>
-                <a href="${job.link}" target="_blank" rel="noopener" class="opening-apply" style="width:100%;justify-content:center;padding:10px 16px;border-radius:12px;">
+                <a href="${applyUrl}" target="_blank" rel="noopener" class="opening-apply" style="width:100%;justify-content:center;padding:10px 16px;border-radius:12px;">
                     Apply Now
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
                 </a>`;

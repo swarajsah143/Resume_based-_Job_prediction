@@ -390,7 +390,7 @@ JOB_OPENINGS = {
         {"title": "Backend Developer", "company": "Amazon", "location": "Hyderabad, India", "type": "Full-time", "salary": "₹15-30 LPA", "link": "https://www.amazon.jobs"},
         {"title": "Node.js Developer", "company": "Zomato", "location": "Gurugram, India", "type": "Full-time", "salary": "₹10-20 LPA", "link": "https://www.zomato.com/careers"},
         {"title": "Python Backend Engineer", "company": "Razorpay", "location": "Bangalore, India", "type": "Full-time", "salary": "₹12-25 LPA", "link": "https://razorpay.com/careers"},
-        {"title": "Java Developer", "company": "TCS", "location": "Multiple Locations", "type": "Full-time", "salary": "₹5-12 LPA", "link": "https://ibegin.tcs.com"},
+        {"title": "Java Developer", "company": "TCS", "location": "Multiple Locations", "type": "Full-time", "salary": "₹5-12 LPA", "link": "https://www.tcs.com/careers"},
     ],
     "Full Stack Developer": [
         {"title": "Full Stack Developer", "company": "Infosys", "location": "Pune, India", "type": "Full-time", "salary": "₹6-15 LPA", "link": "https://www.infosys.com/careers"},
@@ -405,16 +405,16 @@ JOB_OPENINGS = {
         {"title": "AI/ML Engineer", "company": "Samsung R&D", "location": "Noida, India", "type": "Full-time", "salary": "₹12-28 LPA", "link": "https://www.samsung.com/in/careers"},
     ],
     "Data Analyst": [
-        {"title": "Data Analyst", "company": "Deloitte", "location": "Hyderabad, India", "type": "Full-time", "salary": "₹6-14 LPA", "link": "https://www2.deloitte.com/careers"},
+        {"title": "Data Analyst", "company": "Deloitte", "location": "Hyderabad, India", "type": "Full-time", "salary": "₹6-14 LPA", "link": "https://www2.deloitte.com/in/en/careers.html"},
         {"title": "Business Analyst", "company": "Accenture", "location": "Mumbai, India", "type": "Full-time", "salary": "₹5-12 LPA", "link": "https://www.accenture.com/careers"},
         {"title": "Analytics Consultant", "company": "EY", "location": "Gurugram, India", "type": "Full-time", "salary": "₹7-15 LPA", "link": "https://www.ey.com/careers"},
         {"title": "Data Analyst", "company": "PhonePe", "location": "Bangalore, India", "type": "Full-time", "salary": "₹8-16 LPA", "link": "https://www.phonepe.com/careers"},
     ],
     "Machine Learning Engineer": [
         {"title": "ML Engineer", "company": "NVIDIA", "location": "Pune, India", "type": "Full-time", "salary": "₹20-45 LPA", "link": "https://www.nvidia.com/careers"},
-        {"title": "Deep Learning Engineer", "company": "Intel", "location": "Bangalore, India", "type": "Full-time", "salary": "₹15-35 LPA", "link": "https://www.intel.com/careers"},
+        {"title": "Deep Learning Engineer", "company": "Intel", "location": "Bangalore, India", "type": "Full-time", "salary": "₹15-35 LPA", "link": "https://jobs.intel.com/"},
         {"title": "AI Engineer", "company": "Microsoft", "location": "Hyderabad, India", "type": "Full-time", "salary": "₹18-40 LPA", "link": "https://careers.microsoft.com"},
-        {"title": "ML Platform Engineer", "company": "Uber", "location": "Remote", "type": "Full-time", "salary": "₹22-48 LPA", "link": "https://www.uber.com/careers"},
+        {"title": "ML Platform Engineer", "company": "Uber", "location": "Remote", "type": "Full-time", "salary": "₹22-48 LPA", "link": "https://www.uber.com/us/en/careers/"},
     ],
     "DevOps Engineer": [
         {"title": "DevOps Engineer", "company": "Amazon", "location": "Hyderabad, India", "type": "Full-time", "salary": "₹12-28 LPA", "link": "https://www.amazon.jobs"},
@@ -425,7 +425,7 @@ JOB_OPENINGS = {
     "Mobile App Developer": [
         {"title": "Android Developer", "company": "Google", "location": "Bangalore, India", "type": "Full-time", "salary": "₹12-28 LPA", "link": "https://careers.google.com"},
         {"title": "iOS Developer", "company": "Apple", "location": "Hyderabad, India", "type": "Full-time", "salary": "₹15-35 LPA", "link": "https://www.apple.com/careers"},
-        {"title": "Flutter Developer", "company": "Meesho", "location": "Bangalore, India", "type": "Full-time", "salary": "₹8-18 LPA", "link": "https://meesho.io/careers"},
+        {"title": "Flutter Developer", "company": "Meesho", "location": "Bangalore, India", "type": "Full-time", "salary": "₹8-18 LPA", "link": "https://careers.meesho.com/"},
         {"title": "React Native Developer", "company": "CRED", "location": "Bangalore, India", "type": "Full-time", "salary": "₹12-25 LPA", "link": "https://careers.cred.club"},
     ],
     "Cloud Engineer": [
@@ -437,8 +437,8 @@ JOB_OPENINGS = {
     "Cybersecurity Analyst": [
         {"title": "Security Analyst", "company": "Cisco", "location": "Bangalore, India", "type": "Full-time", "salary": "₹10-22 LPA", "link": "https://jobs.cisco.com"},
         {"title": "Cybersecurity Engineer", "company": "Palo Alto Networks", "location": "Mumbai, India", "type": "Full-time", "salary": "₹12-28 LPA", "link": "https://www.paloaltonetworks.com/company/careers"},
-        {"title": "InfoSec Analyst", "company": "Deloitte", "location": "Hyderabad, India", "type": "Full-time", "salary": "₹8-18 LPA", "link": "https://www2.deloitte.com/careers"},
-        {"title": "Ethical Hacker", "company": "TCS", "location": "Multiple Locations", "type": "Full-time", "salary": "₹5-12 LPA", "link": "https://ibegin.tcs.com"},
+        {"title": "InfoSec Analyst", "company": "Deloitte", "location": "Hyderabad, India", "type": "Full-time", "salary": "₹8-18 LPA", "link": "https://www2.deloitte.com/in/en/careers.html"},
+        {"title": "Ethical Hacker", "company": "TCS", "location": "Multiple Locations", "type": "Full-time", "salary": "₹5-12 LPA", "link": "https://www.tcs.com/careers"},
     ],
     "UI/UX Designer": [
         {"title": "UI/UX Designer", "company": "Swiggy", "location": "Bangalore, India", "type": "Full-time", "salary": "₹8-20 LPA", "link": "https://careers.swiggy.com"},
@@ -449,8 +449,8 @@ JOB_OPENINGS = {
     "Software Engineer": [
         {"title": "Software Engineer", "company": "Google", "location": "Bangalore, India", "type": "Full-time", "salary": "₹18-40 LPA", "link": "https://careers.google.com"},
         {"title": "SDE-1", "company": "Amazon", "location": "Hyderabad, India", "type": "Full-time", "salary": "₹15-30 LPA", "link": "https://www.amazon.jobs"},
-        {"title": "Software Developer", "company": "Adobe", "location": "Noida, India", "type": "Full-time", "salary": "₹12-28 LPA", "link": "https://www.adobe.com/careers"},
-        {"title": "Associate Software Engineer", "company": "Salesforce", "location": "Hyderabad, India", "type": "Full-time", "salary": "₹10-22 LPA", "link": "https://salesforce.wd1.myworkdayjobs.com"},
+        {"title": "Software Developer", "company": "Adobe", "location": "Noida, India", "type": "Full-time", "salary": "₹12-28 LPA", "link": "https://careers.adobe.com/"},
+        {"title": "Associate Software Engineer", "company": "Salesforce", "location": "Hyderabad, India", "type": "Full-time", "salary": "₹10-22 LPA", "link": "https://careers.salesforce.com/"},
     ],
 }
 

@@ -675,13 +675,38 @@ h1,h2,h3,h4,h5,h6{font-family:var(--font-display);letter-spacing:-0.025em;line-h
 .info-list li{padding:10px 0 10px 20px;font-size:0.88rem;color:var(--text-secondary);border-bottom:1px solid rgba(255,255,255,0.03);position:relative;line-height:1.6}
 .info-list li::before{content:'';position:absolute;left:0;top:50%;transform:translateY(-50%);width:6px;height:6px;border-radius:50%;background:var(--primary);box-shadow:0 0 6px rgba(139,92,246,0.4)}
 
+/* Keyword Detection — count badge */
+.kw-count{margin-left:auto;display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:20px;padding:0 8px;font-family:var(--font);font-size:0.72rem;font-weight:600;color:var(--primary-light);background:rgba(139,92,246,0.12);border:1px solid rgba(139,92,246,0.18);border-radius:100px;letter-spacing:normal}
+.kw-count:empty{display:none}
+
+/* Keyword Detection — skills grouped by category */
+.skill-groups{display:flex;flex-direction:column;gap:16px}
+.skill-group-label{font-size:0.68rem;font-weight:600;letter-spacing:0.07em;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px}
+.skill-tags-row{display:flex;flex-wrap:wrap;gap:8px}
+
+/* Keyword Detection — education / experience compact list */
+.kw-list{display:flex;flex-direction:column;gap:8px}
+.kw-item{position:relative;padding:9px 12px 9px 28px;font-size:0.83rem;line-height:1.45;color:var(--text-secondary);background:rgba(255,255,255,0.02);border:1px solid var(--border-glass);border-radius:var(--radius-sm);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:default;transition:background var(--t-fast),border-color var(--t-fast),color var(--t-fast)}
+.kw-item::before{content:'';position:absolute;left:11px;top:14px;width:6px;height:6px;border-radius:50%;background:var(--primary);box-shadow:0 0 6px rgba(139,92,246,0.4)}
+.kw-item:hover{background:rgba(139,92,246,0.06);border-color:rgba(139,92,246,0.18);color:var(--text-primary);white-space:normal}
+.kw-item.kw-hidden{display:none}
+.kw-expanded .kw-item.kw-hidden{display:block}
+.kw-toggle{align-self:flex-start;margin-top:2px;padding:6px 13px;font-family:var(--font);font-size:0.76rem;font-weight:500;color:var(--primary-light);background:rgba(139,92,246,0.06);border:1px solid rgba(139,92,246,0.14);border-radius:100px;cursor:pointer;transition:all var(--t-fast)}
+.kw-toggle:hover{background:rgba(139,92,246,0.14);border-color:rgba(139,92,246,0.28)}
+.kw-empty{font-size:0.83rem;color:var(--text-muted);padding:4px 0}
+
+/* Keyword Detection — equal-width / equal-height panels */
+.kw-grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px;align-items:stretch}
+.kw-panel{display:flex;flex-direction:column;gap:22px;min-width:0;height:100%;padding:20px 22px;background:rgba(255,255,255,0.015);border:1px solid var(--border-glass);border-radius:var(--radius)}
+.kw-panel .extracted-section{display:flex;flex-direction:column}
+
 
 /* ─────────────────────────────────────────────────────────────────────────────
    20. ROLES
    ───────────────────────────────────────────────────────────────────────────── */
 .roles-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px}
 .role-card{border:1px solid var(--border-glass);border-radius:var(--radius-lg);padding:24px;cursor:pointer;transition:all var(--t-base);position:relative;overflow:hidden;background:var(--bg-card)}
-.role-card::before{content:'';position:absolute;inset:0;border-radius:var(--radius-lg);padding:1px;background:linear-gradient(135deg,rgba(139,92,246,0.4),rgba(236,72,153,0.3),rgba(59,130,246,0.4));-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;opacity:0;transition:opacity var(--t-base)}
+.role-card::before{content:'';position:absolute;inset:0;border-radius:var(--radius-lg);padding:1px;background:linear-gradient(135deg,rgba(139,92,246,0.4),rgba(236,72,153,0.3),rgba(59,130,246,0.4));-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;opacity:0;transition:opacity var(--t-base);pointer-events:none}
 .role-card:hover::before{opacity:1}
 .role-card:hover{background:var(--bg-glass);transform:translateY(-2px);box-shadow:var(--shadow-neon)}
 .role-card.selected{border-color:var(--primary);box-shadow:0 0 0 1px var(--primary),var(--shadow-glow-purple);background:rgba(139,92,246,0.06)}
@@ -714,7 +739,7 @@ h1,h2,h3,h4,h5,h6{font-family:var(--font-display);letter-spacing:-0.025em;line-h
    ───────────────────────────────────────────────────────────────────────────── */
 .openings-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px}
 .opening-card{border:1px solid var(--border-glass);border-radius:var(--radius-lg);padding:24px;transition:all var(--t-base);background:var(--bg-card);position:relative;overflow:hidden}
-.opening-card::before{content:'';position:absolute;inset:0;border-radius:var(--radius-lg);padding:1px;background:linear-gradient(135deg,rgba(139,92,246,0.3),rgba(236,72,153,0.2),rgba(59,130,246,0.3));-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;opacity:0;transition:opacity var(--t-base)}
+.opening-card::before{content:'';position:absolute;inset:0;border-radius:var(--radius-lg);padding:1px;background:linear-gradient(135deg,rgba(139,92,246,0.3),rgba(236,72,153,0.2),rgba(59,130,246,0.3));-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;opacity:0;transition:opacity var(--t-base);pointer-events:none}
 .opening-card:hover::before{opacity:1}
 .opening-card:hover{transform:translateY(-2px);box-shadow:var(--shadow-neon)}
 .opening-title{font-family:var(--font-display);font-size:0.98rem;font-weight:600;color:#fff;margin-bottom:6px}
